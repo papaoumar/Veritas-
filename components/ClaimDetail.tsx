@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Claim, VoteType } from '../types';
 import { analyzeClaimWithGemini } from '../geminiService';
-import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Cpu, Globe, Share2, Shield, Calendar } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Cpu, Globe, Share2, Shield, Calendar, FileText } from 'lucide-react';
+import { VideoPlayer } from './VideoPlayer';
 
 interface ClaimDetailProps {
   claims: Claim[];
@@ -77,6 +79,17 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
     }
   };
 
+  // Helper to parse bold markdown
+  const formatText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <span key={index} className="font-bold text-slate-900 dark:text-white">{part.slice(2, -2)}</span>;
+      }
+      return part;
+    });
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <button 
@@ -116,6 +129,13 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
                 className="w-full max-h-[500px] object-cover"
               />
             </div>
+          )}
+
+          {/* Video Detail View */}
+          {claim.videoUrl && (
+             <div className="mb-8 rounded-xl overflow-hidden shadow-sm">
+                <VideoPlayer url={claim.videoUrl} />
+             </div>
           )}
 
           <div className="flex items-center justify-between pt-6 border-t border-slate-100">
@@ -221,10 +241,28 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
                   </div>
                   
                   <div className="flex-1">
-                    <h4 className="font-bold text-slate-900 mb-2">Résumé de l'analyse</h4>
-                    <p className="text-slate-600 leading-relaxed whitespace-pre-line text-sm">
-                      {claim.aiAnalysis.summary}
-                    </p>
+                    <h4 className="font-bold text-slate-900 mb-3 flex items-center">
+                      <FileText className="w-4 h-4 mr-2 text-indigo-500" />
+                      Résumé de l'analyse
+                    </h4>
+                    <div className="text-slate-700 text-sm leading-relaxed space-y-4">
+                      {claim.aiAnalysis.summary.split('\n').map((line, index) => {
+                        const trimmed = line.trim();
+                        if (!trimmed) return null;
+
+                        // Detection for list items (bullets)
+                        if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
+                          return (
+                            <div key={index} className="flex items-start pl-4 pr-3 py-2 bg-slate-50/80 rounded-lg border border-slate-100 shadow-sm transition-all hover:bg-slate-100">
+                              <div className="min-w-[6px] h-[6px] rounded-full bg-indigo-500 mt-2 mr-3 flex-shrink-0"></div>
+                              <span className="text-slate-800">{formatText(trimmed.replace(/^[-*•]\s*/, ''))}</span>
+                            </div>
+                          );
+                        }
+                        
+                        return <p key={index} className="text-slate-700 dark:text-slate-300">{formatText(trimmed)}</p>;
+                      })}
+                    </div>
                   </div>
                 </div>
 
