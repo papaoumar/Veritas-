@@ -16,6 +16,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
 
   // General
   const [language, setLanguage] = useState<'fr' | 'en'>(user.preferences?.language || 'fr');
+  const [country, setCountry] = useState<string>(user.country || 'France');
   const [blockedCategories, setBlockedCategories] = useState<string[]>(user.preferences?.blockedCategories || []);
 
   // Security
@@ -35,6 +36,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
   const handleSave = () => {
     const updatedUser: User = {
       ...user,
+      country,
       security: {
         ...user.security,
         twoFactorEnabled: twoFactor,
@@ -148,16 +150,36 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
                   <Globe className="w-5 h-5 mr-2 text-indigo-500" />
                   Langue & Région
                 </h3>
-                <div className="max-w-md">
-                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Langue de l'interface</label>
-                   <select 
-                      value={language} 
-                      onChange={(e) => setLanguage(e.target.value as 'fr' | 'en')}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-indigo-500"
-                   >
-                      <option value="fr">Français (France)</option>
-                      <option value="en">English (US)</option>
-                   </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg">
+                   <div>
+                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Langue</label>
+                       <select 
+                          value={language} 
+                          onChange={(e) => setLanguage(e.target.value as 'fr' | 'en')}
+                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-indigo-500"
+                       >
+                          <option value="fr">Français (France)</option>
+                          <option value="en">English (US)</option>
+                       </select>
+                   </div>
+                   <div>
+                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Pays</label>
+                       <select 
+                          value={country} 
+                          onChange={(e) => setCountry(e.target.value)}
+                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg focus:ring-indigo-500"
+                       >
+                          <option value="France">France</option>
+                          <option value="Mali">Mali</option>
+                          <option value="Burkina Faso">Burkina Faso</option>
+                          <option value="Niger">Niger</option>
+                          <option value="Sénégal">Sénégal</option>
+                          <option value="USA">USA</option>
+                          <option value="Japon">Japon</option>
+                          <option value="International">International</option>
+                          <option value="Autre">Autre</option>
+                       </select>
+                   </div>
                 </div>
                </div>
 

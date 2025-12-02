@@ -1,19 +1,23 @@
 
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { User, ExpertLevel } from '../types';
 import { MemberIdCard } from './MemberIdCard';
-import { Search, Filter, Globe, MapPin } from 'lucide-react';
+import { Search, Filter, Globe, MapPin, X } from 'lucide-react';
 
 interface NetworkProps {
   users: User[];
 }
 
 export const Network: React.FC<NetworkProps> = ({ users }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState<string>('All');
-  const [filterCountry, setFilterCountry] = useState<string>('All');
+  
+  // Récupérer le pays depuis l'URL ou par défaut 'All'
+  const filterCountry = searchParams.get('country') || 'All';
 
-  // Calculate counts per country
+  // Calculate counts per country from user data
   const countryStats = users.reduce((acc, user) => {
     const country = user.country || 'International';
     acc[country] = (acc[country] || 0) + 1;
@@ -30,6 +34,29 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
     
     return matchesSearch && matchesLevel && matchesCountry;
   });
+
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    const newParams = new URLSearchParams(searchParams);
+    
+    if (value === 'All') {
+      newParams.delete('country');
+    } else {
+      newParams.set('country', value);
+    }
+    
+    setSearchParams(newParams);
+  };
+
+  const handleResetFilters = () => {
+    setFilterLevel('All');
+    setSearchTerm('');
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('country');
+    setSearchParams(newParams);
+  };
+
+  const hasActiveFilters = filterCountry !== 'All' || filterLevel !== 'All' || searchTerm !== '';
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -70,14 +97,21 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
              <span className="text-sm font-medium text-slate-700 mr-2">Filtres:</span>
            </div>
            
+           {/* Country Filter */}
            <div className="relative">
              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <MapPin className="h-3.5 w-3.5 text-slate-400" />
              </div>
              <select 
                value={filterCountry}
-               onChange={(e) => setFilterCountry(e.target.value)}
-               className="border border-slate-300 rounded-lg pl-9 pr-8 py-2 text-sm bg-slate-50 focus:ring-indigo-500 min-w-[180px] appearance-none"
+               onChange={handleCountryChange}
+               className="border border-slate-300 rounded-lg pl-9 pr-8 py-2 text-sm bg-slate-50 focus:ring-indigo-500 min-w-[180px] appearance-none cursor-pointer hover:bg-slate-50 transition-colors"
+               style={{ 
+                 backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, 
+                 backgroundPosition: `right 0.5rem center`, 
+                 backgroundRepeat: `no-repeat`, 
+                 backgroundSize: `1.5em 1.5em` 
+               }}
              >
                <option value="All">🌍 Tous les pays ({users.length})</option>
                {countries.map(c => (
@@ -86,10 +120,11 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
              </select>
            </div>
 
+           {/* Level Filter */}
            <select 
              value={filterLevel}
              onChange={(e) => setFilterLevel(e.target.value)}
-             className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50 focus:ring-indigo-500"
+             className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors"
            >
              <option value="All">Tous niveaux</option>
              <option value={ExpertLevel.OBSERVER}>{ExpertLevel.OBSERVER}</option>
@@ -97,6 +132,17 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
              <option value={ExpertLevel.EXPERT}>{ExpertLevel.EXPERT}</option>
              <option value={ExpertLevel.MASTER}>{ExpertLevel.MASTER}</option>
            </select>
+
+           {/* Clear Filters Button */}
+           {hasActiveFilters && (
+             <button 
+               onClick={handleResetFilters}
+               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+               title="Réinitialiser les filtres"
+             >
+               <X className="w-4 h-4" />
+             </button>
+           )}
         </div>
       </div>
 
@@ -106,7 +152,7 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
           <Globe className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <p className="text-slate-500 font-medium">Aucun membre trouvé pour ces critères.</p>
           <button 
-            onClick={() => {setFilterCountry('All'); setFilterLevel('All'); setSearchTerm('');}}
+            onClick={handleResetFilters}
             className="mt-2 text-indigo-600 text-sm hover:underline"
           >
             Réinitialiser les filtres

@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Claim, VoteType, User, Comment, ExpertLevel, Transaction } from '../types';
-import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter } from 'lucide-react';
+import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CreditCard } from 'lucide-react';
 import { analyzeClaimWithGemini } from '../geminiService';
 import { VideoPlayer } from './VideoPlayer';
 
@@ -18,8 +18,10 @@ const UNCERTAIN_VOTE_COST = 3;
 const VOTE_EXPIRATION_DAYS = 30;
 const VOTE_EXPIRATION_MS = VOTE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000;
 const VXT_EXCHANGE_RATE = 0.01; // 1 VXT = 0.01 $
+const MIN_BALANCE_RESERVE = 20; // Solde minimum à conserver
 
 export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUser, onUpdate, onVote }) => {
+  const navigate = useNavigate();
   const [isCopied, setIsCopied] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [filterVoteType, setFilterVoteType] = useState<VoteType | null>(null);
@@ -30,6 +32,10 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showSources, setShowSources] = useState(false);
   
+  // Vote History Modal State
+  const [showVoteHistoryDetails, setShowVoteHistoryDetails] = useState(false);
+  const [voteHistorySort, setVoteHistorySort] = useState<'desc' | 'asc'>('desc');
+
   // Media Analysis State
   const [analyzingMedia, setAnalyzingMedia] = useState<'image' | 'video' | null>(null);
   const [mediaCheck, setMediaCheck] = useState<{ type: 'image' | 'video', confidence: number, verdict: VoteType } | null>(null);
@@ -91,6 +97,13 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const countsToDisplay = showAllHistory ? claim.votes : activeVoteCounts;
   const totalDisplayVotes = (Object.values(countsToDisplay) as number[]).reduce((a, b) => a + b, 0);
 
+  // Sorted Vote History for Modal
+  const sortedVoteHistory = [...(claim.voteHistory || [])].sort((a, b) => {
+    return voteHistorySort === 'desc' 
+      ? b.timestamp - a.timestamp 
+      : a.timestamp - b.timestamp;
+  });
+
   const getVerdictColor = (verdict?: VoteType) => {
     switch (verdict) {
       case VoteType.TRUE: return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-800';
@@ -149,30 +162,48 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const handleVoteClick = (e: React.MouseEvent, type: VoteType) => {
     e.stopPropagation();
     
+    // Check reserve logic before opening modal
     const voteCost = getVoteCost(type);
-
-    if (currentUser.walletBalance >= voteCost && claim.userVote !== type) {
-      setPendingVoteType(type);
-      setShowVoteConfirmation(true);
-    } else if (claim.userVote === type) {
-       return;
-    } else {
-       // Should not happen as button would be disabled or visually indicated, but safe check
-       alert(`Solde insuffisant ! Il vous faut ${voteCost} VXT pour voter.`);
+    
+    // 1. Check if user has enough absolute balance
+    if (currentUser.walletBalance < voteCost) {
+      alert(`Solde insuffisant ! Il vous faut ${voteCost} VXT pour voter.`);
+      return;
     }
+
+    // 2. Check if user maintains reserve (unless simply changing vote, but simplistic check for now)
+    // Note: If user is changing vote, they technically get refunded then pay again, but let's be strict for safety
+    if (currentUser.walletBalance - voteCost < MIN_BALANCE_RESERVE && claim.userVote !== type) {
+       alert(`Action refusée : Vous devez conserver un solde minimum de ${MIN_BALANCE_RESERVE} VXT après avoir voté.`);
+       return;
+    }
+
+    if (claim.userVote === type) {
+       return;
+    }
+
+    setPendingVoteType(type);
+    setShowVoteConfirmation(true);
   };
 
   const confirmVote = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (pendingVoteType) {
-      onVote(claim.id, pendingVoteType);
-      
       // Trigger Flying Coin Animation
       setAnimatingVote(pendingVoteType);
+      
+      // Delay to allow animation to start visible
+      setTimeout(() => {
+        onVote(claim.id, pendingVoteType);
+        setShowVoteConfirmation(false);
+        setPendingVoteType(null);
+      }, 700);
+
+      // Reset animation state
       setTimeout(() => setAnimatingVote(null), 1500);
+    } else {
+      setShowVoteConfirmation(false);
     }
-    setShowVoteConfirmation(false);
-    setPendingVoteType(null);
   };
 
   const cancelVote = (e: React.MouseEvent) => {
@@ -317,6 +348,16 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
     }
   };
 
+  const getTxDetails = (tx: Transaction) => {
+    switch(tx.type) {
+      case 'DEPOSIT': return { icon: ArrowDownLeft, color: 'text-emerald-600', bg: 'bg-emerald-100', label: 'Dépôt' };
+      case 'WITHDRAWAL': return { icon: ArrowUpRight, color: 'text-orange-600', bg: 'bg-orange-100', label: 'Retrait' };
+      case 'VOTE': return { icon: Check, color: 'text-slate-600', bg: 'bg-slate-100', label: 'Vote' };
+      case 'EARNING': return { icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-100', label: 'Gain' };
+      default: return { icon: Coins, color: 'text-slate-600', bg: 'bg-slate-100', label: 'Transaction' };
+    }
+  };
+
   const getConfidenceColorClass = (confidence: number) => {
     if (confidence >= 80) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     if (confidence >= 50) return 'bg-amber-100 text-amber-700 border-amber-200';
@@ -360,7 +401,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
       count: countsToDisplay[VoteType.TRUE], 
       color: 'text-emerald-800 dark:text-emerald-400', 
       selectedColor: 'text-emerald-900 dark:text-emerald-200',
-      hoverBg: 'hover:bg-emerald-50 dark:hover:bg-emerald-900/30', 
+      hoverBg: 'hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:scale-105', 
       label: 'Vrai', 
       borderColor: 'border-emerald-600 dark:border-emerald-500', 
       bgSelected: 'bg-emerald-200 dark:bg-emerald-900/60',
@@ -417,6 +458,9 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const hasMultipleMedia = claim.imageUrl && claim.videoUrl;
   const pendingCost = pendingVoteType ? getVoteCost(pendingVoteType) : 0;
 
+  // Check if any vote would trigger a low balance warning (for the UI)
+  const isBalanceCritical = currentUser.walletBalance < MIN_BALANCE_RESERVE + STANDARD_VOTE_COST;
+
   return (
     <div 
       onClick={onClick}
@@ -437,6 +481,83 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
       {notificationMsg && (
         <div className="absolute top-4 right-4 z-20 bg-slate-900/90 dark:bg-slate-100/90 text-white dark:text-slate-900 px-3 py-1.5 rounded-full text-xs font-medium animate-in fade-in slide-in-from-top-2">
           {notificationMsg}
+        </div>
+      )}
+
+      {/* Vote History Modal */}
+      {showVoteHistoryDetails && (
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+             e.stopPropagation();
+             setShowVoteHistoryDetails(false);
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center">
+                <CalendarClock className="w-5 h-5 mr-2 text-indigo-500" />
+                Journal des votes
+              </h3>
+              <button 
+                onClick={() => setShowVoteHistoryDetails(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/30 border-b border-slate-100 dark:border-slate-700 flex justify-end">
+               <button 
+                 onClick={() => setVoteHistorySort(prev => prev === 'desc' ? 'asc' : 'desc')}
+                 className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+               >
+                 Trier par date
+                 {voteHistorySort === 'desc' ? <ArrowDown className="w-3.5 h-3.5 ml-1" /> : <ArrowUp className="w-3.5 h-3.5 ml-1" />}
+               </button>
+            </div>
+            
+            <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar flex-1">
+              {!claim.voteHistory || claim.voteHistory.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  <p>Aucun vote enregistré dans l'historique.</p>
+                </div>
+              ) : (
+                sortedVoteHistory.map((vote, idx) => {
+                  const voteItemConfig = voteItems.find(v => v.type === vote.voteType);
+                  const Icon = voteItemConfig ? voteItemConfig.icon : HelpCircle;
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-full ${voteItemConfig?.bgSelected.replace('200', '100').replace('900/60', '900/30')} ${voteItemConfig?.color}`}>
+                           <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                            {voteItemConfig?.label || 'Vote'}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {new Date(vote.timestamp).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', year: 'numeric'})} à {new Date(vote.timestamp).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-xs font-mono text-slate-400">
+                        {vote.userId ? `ID: ${vote.userId.substring(0, 4)}...` : 'Anonyme'}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 text-center border-t border-slate-100 dark:border-slate-700">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Total des votes enregistrés : <strong className="text-slate-900 dark:text-white">{claim.voteHistory ? claim.voteHistory.length : 0}</strong>
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -472,33 +593,50 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                   <p>Aucune transaction récente.</p>
                 </div>
               ) : (
-                currentUser.transactions.slice(0, 20).map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className={`p-2 rounded-full ${
-                        tx.amount > 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'
-                      }`}>
-                         {tx.amount > 0 ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                currentUser.transactions.slice(0, 20).map((tx) => {
+                  const details = getTxDetails(tx);
+                  const Icon = details.icon;
+                  return (
+                    <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-full ${details.bg} ${details.color} bg-opacity-50`}>
+                           <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-200 line-clamp-1">{tx.description}</p>
+                          <div className="flex items-center space-x-2">
+                             <span className="text-[10px] uppercase font-bold text-slate-400">{details.label}</span>
+                             <span className="text-[10px] text-slate-300">•</span>
+                             <p className="text-xs text-slate-500 dark:text-slate-400">
+                               {new Date(tx.timestamp).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit'})}
+                             </p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-200 line-clamp-1">{tx.description}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {new Date(tx.timestamp).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit'})}
-                        </p>
-                      </div>
+                      <span className={`font-bold text-sm whitespace-nowrap ${tx.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {tx.amount > 0 ? '+' : ''}{tx.amount} VXT
+                      </span>
                     </div>
-                    <span className={`font-bold text-sm whitespace-nowrap ${tx.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {tx.amount > 0 ? '+' : ''}{tx.amount} VXT
-                    </span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
-            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 text-center border-t border-slate-100 dark:border-slate-700">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex flex-col items-center border-t border-slate-100 dark:border-slate-700">
+              <span className="text-xs text-slate-500 dark:text-slate-400 mb-2">
                 Solde actuel : <strong className="text-slate-900 dark:text-white">{currentUser.walletBalance} VXT</strong>
                 <span className="font-normal text-slate-400 ml-1">(${(currentUser.walletBalance * VXT_EXCHANGE_RATE).toFixed(2)})</span>
               </span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowHistoryModal(false);
+                  navigate('/profile');
+                }}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center transition-colors px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 w-full justify-center"
+                title="Voir mon historique de transactions (Dépôts, Votes, Retraits)"
+              >
+                Voir tout l'historique <ArrowRight className="w-3 h-3 ml-1" />
+              </button>
             </div>
           </div>
         </div>
@@ -522,10 +660,10 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
             </p>
             
             {/* Low Balance Warning */}
-            {currentUser.walletBalance - pendingCost < 20 && (
+            {currentUser.walletBalance - pendingCost < MIN_BALANCE_RESERVE && (
                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-lg text-xs text-red-700 dark:text-red-400 text-left animate-pulse">
-                  <p className="font-bold flex items-center mb-1"><AlertTriangle className="w-3 h-3 mr-1" /> Attention : Solde bas</p>
-                  Il ne vous restera que <b>{currentUser.walletBalance - pendingCost} VXT</b> après ce vote.
+                  <p className="font-bold flex items-center mb-1"><AlertTriangle className="w-3 h-3 mr-1" /> Attention : Réserve insuffisante</p>
+                  Votre solde ({currentUser.walletBalance - pendingCost} VXT) sera inférieur au minimum requis de {MIN_BALANCE_RESERVE} VXT.
                </div>
             )}
 
@@ -784,6 +922,16 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
           </div>
         </div>
 
+        {/* Low Balance Warning Alert */}
+        {isBalanceCritical && !claim.userVote && (
+           <div className="mb-4 mx-1 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-lg flex items-center text-xs text-red-700 dark:text-red-400">
+              <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span>
+                Attention : Votre solde est bas. Il est nécessaire de conserver une réserve de <strong>{MIN_BALANCE_RESERVE} VXT</strong> après chaque vote.
+              </span>
+           </div>
+        )}
+
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
           <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${claim.userVote ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'}`}>
             {claim.userVote ? 'Votre vote' : 'Voter sur cette affirmation'}
@@ -804,7 +952,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                   onClick={(e) => handleFilterClick(e, filter.type)}
                   className={`px-2 py-0.5 rounded-md border transition-colors whitespace-nowrap ${
                     filterVoteType === filter.type 
-                      ? filter.activeClass 
+                      ? `${filter.activeClass} border-2 border-indigo-600 dark:border-indigo-600`
                       : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -822,22 +970,35 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               )}
             </div>
             
-            {/* Toggle History */}
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowAllHistory(!showAllHistory);
-              }}
-              className={`flex-shrink-0 flex items-center px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ml-2 ${
-                showAllHistory 
-                  ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' 
-                  : 'bg-slate-50 text-slate-400 border-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:hover:text-slate-300'
-              }`}
-              title={showAllHistory ? "Afficher seulement les votes récents" : "Afficher tout l'historique"}
-            >
-              <History className="w-3 h-3 mr-1" />
-              {showAllHistory ? "Historique complet" : "Votes actifs (30j)"}
-            </button>
+            <div className="flex items-center space-x-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowVoteHistoryDetails(true);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Voir le journal détaillé des votes"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+
+                {/* Toggle History */}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAllHistory(!showAllHistory);
+                  }}
+                  className={`flex-shrink-0 flex items-center px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${
+                    showAllHistory 
+                      ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' 
+                      : 'bg-slate-50 text-slate-400 border-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:hover:text-slate-300'
+                  }`}
+                  title={showAllHistory ? "Afficher seulement les votes récents" : "Afficher tout l'historique"}
+                >
+                  <History className="w-3 h-3 mr-1" />
+                  {showAllHistory ? "Historique complet" : "Votes actifs (30j)"}
+                </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-sm flex-wrap gap-y-2">
@@ -845,24 +1006,39 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               {visibleVotes.map((item) => {
                 const isSelected = claim.userVote === item.type;
                 const itemCost = getVoteCost(item.type);
-                const canVote = currentUser.walletBalance >= itemCost;
-                // Show cost if user can vote and hasn't voted this option yet
-                const showCost = canVote && !isSelected;
+                const canAfford = currentUser.walletBalance >= itemCost;
+                
+                // New logic: Check if reserve is met after this potential vote
+                const reserveMet = (currentUser.walletBalance - itemCost) >= MIN_BALANCE_RESERVE;
+                
+                // Disable if: not selected AND (cant afford OR reserve not met)
+                const isDisabled = !isSelected && (!canAfford || !reserveMet);
+                
                 const percentage = totalDisplayVotes > 0 ? Math.round((item.count / totalDisplayVotes) * 100) : 0;
 
+                // Determine tooltip message
+                let tooltip = `Voter (Coût: ${itemCost} VXT)`;
+                if (isDisabled) {
+                   if (!canAfford) tooltip = `Solde insuffisant (${currentUser.walletBalance} VXT) - Requis: ${itemCost} VXT`;
+                   else if (!reserveMet) tooltip = `Solde après vote < ${MIN_BALANCE_RESERVE} VXT (Réserve requise)`;
+                }
+
                 return (
-                  <div key={item.type} className="flex items-center relative flex-shrink-0">
+                  <div key={item.type} className="flex items-center relative flex-shrink-0 group/vote-btn">
                     {/* Render Flying Coin if this button triggered animation */}
                     {animatingVote === item.type && <FlyingCoin amount={itemCost} />}
                     
                     <button 
                       onClick={(e) => handleVoteClick(e, item.type)}
+                      disabled={isDisabled}
                       className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
                         isSelected 
                           ? `border-2 ring-2 ring-offset-1 ${item.ringColor} ${item.borderColor} ${item.selectedColor.replace('text', 'bg').replace('900', '100').replace('200', '900')} shadow-md font-bold transform scale-105 z-10 dark:ring-offset-slate-900` 
-                          : `border border-transparent ${filterVoteType === item.type ? item.color + ' bg-opacity-10 ' + item.color.replace('text', 'bg') : item.hoverBg} text-slate-500 dark:text-slate-400 hover:${item.color.replace('text-', 'text-')}`
+                          : isDisabled
+                            ? 'bg-slate-50 border border-slate-100 text-slate-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
+                            : `border border-transparent ${filterVoteType === item.type ? item.color + ' bg-opacity-10 ' + item.color.replace('text', 'bg') : item.hoverBg} text-slate-500 dark:text-slate-400 hover:${item.color.replace('text-', 'text-')}`
                       } ${isSelected ? item.selectedColor : ''}`}
-                      title={`Voter (Coût: ${itemCost} VXT)`}
+                      title={tooltip}
                     >
                       <item.icon className={`w-4 h-4 ${isSelected ? 'fill-current' : ''}`} />
                       
@@ -886,11 +1062,17 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                         </span>
                       )}
                     </button>
-                    {showCost && (
-                       <span className="ml-1 flex items-center text-[10px] text-amber-600/60 dark:text-amber-400/60 font-medium bg-amber-50/50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full border border-amber-100/50 dark:border-amber-800/30 opacity-80" title={`Coût: ${itemCost} VXT`}>
-                         <Coins className="w-3 h-3 mr-0.5 opacity-80" />
-                         -{itemCost}
-                       </span>
+                    {!isSelected && (
+                       <div className="ml-1 flex flex-col justify-center">
+                         <span className={`flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border transition-colors ${
+                           isDisabled 
+                             ? 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/30 dark:border-red-800' 
+                             : 'text-amber-600/60 dark:text-amber-400/60 bg-amber-50/50 dark:bg-amber-900/20 border-amber-100/50 dark:border-amber-800/30 opacity-80'
+                         }`} title={tooltip}>
+                           {isDisabled ? <AlertCircle className="w-3 h-3 mr-0.5" /> : <Coins className="w-3 h-3 mr-0.5 opacity-80" />}
+                           -{itemCost}
+                         </span>
+                       </div>
                     )}
                   </div>
                 );
@@ -898,6 +1080,18 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
             </div>
 
             <div className="flex items-center space-x-4 ml-auto">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowHistoryModal(true);
+                }}
+                className="flex items-center space-x-1 px-2 py-1 rounded-full transition-colors hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                title="Voir mon historique de transactions (Dépôts, Votes, Retraits)"
+              >
+                <Wallet className="w-4 h-4" />
+                <span className="text-xs font-bold">{currentUser.walletBalance}</span>
+              </button>
+
               <button 
                 onClick={toggleComments}
                 className={`flex items-center space-x-1 transition-colors ${showComments ? 'text-indigo-600 dark:text-indigo-400' : 'hover:text-indigo-600 dark:hover:text-indigo-400'}`}

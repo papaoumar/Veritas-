@@ -83,8 +83,12 @@ export const Navbar: React.FC<NavbarProps> = ({ user, isAuthenticated, onLogout 
 
                   <div className="h-6 w-px bg-slate-200 mx-2"></div>
 
+                  {/* Solde VXT - Conditionné par les préférences de l'utilisateur */}
                   {(user.preferences?.showBalance ?? true) && (
-                    <div className="flex items-center bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-full">
+                    <div 
+                      className="flex items-center bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-full transition-transform hover:scale-105 cursor-default"
+                      title="Votre solde VXT actuel"
+                    >
                       <Coins className="w-4 h-4 mr-1.5 text-amber-600" />
                       <span className="text-xs font-bold">{user.walletBalance} VXT</span>
                     </div>

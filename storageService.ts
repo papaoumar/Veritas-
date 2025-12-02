@@ -153,6 +153,57 @@ const SEED_USERS: User[] = [
     transactions: generateMockTransactions(850),
     preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
     referralStats: { code: 'AMARA-K-22', totalReferred: 2, totalEarnings: 100, pendingEarnings: 0 }
+  },
+  {
+    id: 'u7',
+    name: 'Aminata Diallo',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aminata',
+    email: 'aminata@test.com',
+    password: 'password123',
+    country: 'Mali',
+    memberSince: Date.now() - 35000000,
+    isExpert: false,
+    expertLevel: ExpertLevel.ANALYST,
+    stats: { totalVerifications: 62, correctVerifications: 55, accuracyRate: 88, currentStreak: 4, reputationPoints: 850 },
+    credibilityScore: 88,
+    walletBalance: 420,
+    transactions: generateMockTransactions(420),
+    preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
+    referralStats: { code: 'AMI-ML', totalReferred: 3, totalEarnings: 150, pendingEarnings: 0 }
+  },
+  {
+    id: 'u8',
+    name: 'Bilal Ouedraogo',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bilal',
+    email: 'bilal@test.com',
+    password: 'password123',
+    country: 'Burkina Faso',
+    memberSince: Date.now() - 25000000,
+    isExpert: true,
+    expertLevel: ExpertLevel.EXPERT,
+    stats: { totalVerifications: 110, correctVerifications: 102, accuracyRate: 93, currentStreak: 8, reputationPoints: 2400 },
+    credibilityScore: 93,
+    walletBalance: 1200,
+    transactions: generateMockTransactions(1200),
+    preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
+    referralStats: { code: 'BIL-BF', totalReferred: 8, totalEarnings: 400, pendingEarnings: 50 }
+  },
+  {
+    id: 'u9',
+    name: 'Ibrahim Maïga',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ibrahim',
+    email: 'ibrahim@test.com',
+    password: 'password123',
+    country: 'Niger',
+    memberSince: Date.now() - 15000000,
+    isExpert: false,
+    expertLevel: ExpertLevel.OBSERVER,
+    stats: { totalVerifications: 25, correctVerifications: 20, accuracyRate: 80, currentStreak: 2, reputationPoints: 300 },
+    credibilityScore: 82,
+    walletBalance: 150,
+    transactions: generateMockTransactions(150),
+    preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
+    referralStats: { code: 'IBR-NE', totalReferred: 1, totalEarnings: 50, pendingEarnings: 0 }
   }
 ];
 
