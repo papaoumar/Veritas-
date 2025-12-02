@@ -73,10 +73,10 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
     <div className="max-w-4xl mx-auto py-6">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Paramètres & Configuration</h1>
       
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col md:flex-row min-h-[600px] transition-colors duration-500 ease-in-out">
         
         {/* Sidebar */}
-        <div className="w-full md:w-64 bg-slate-50 dark:bg-slate-900/50 border-r border-slate-200 dark:border-slate-700 p-4">
+        <div className="w-full md:w-64 bg-slate-50 dark:bg-slate-900/50 border-r border-slate-200 dark:border-slate-700 p-4 transition-colors duration-500 ease-in-out">
           <nav className="space-y-1">
              <button
               onClick={() => setActiveTab('general')}

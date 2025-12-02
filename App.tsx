@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
@@ -10,6 +9,7 @@ import { Login } from './components/Login';
 import { Settings } from './components/Settings';
 import { Leaderboard } from './components/Leaderboard';
 import { Network } from './components/Network';
+import { AdUnit } from './components/AdUnit';
 import { Claim, User, VoteType, PaymentMethod, ExpertLevel, Transaction } from './types';
 import { TrendingUp, Award, Zap, Coins, Wallet, X, CreditCard, Landmark, CheckCircle, ArrowRight, Shield } from 'lucide-react';
 import { StorageService } from './storageService';
@@ -25,6 +25,158 @@ const calculateExpertLevel = (reputation: number): ExpertLevel => {
 const VOTE_COST_STANDARD = 5; 
 const VOTE_COST_UNCERTAIN = 3;
 const VXT_EXCHANGE_RATE = 0.01; // 1 VXT = 0.01 € (100 VXT = 1€)
+
+// Feed Component with Infinite Scroll
+const Feed: React.FC<{
+  claims: Claim[];
+  user: User | null;
+  onUpdateClaim: (updatedClaim: Claim) => void;
+  onVote: (claimId: string, voteType: VoteType) => void;
+}> = ({ claims, user, onUpdateClaim, onVote }) => {
+  const navigate = useNavigate();
+  const [sortOption, setSortOption] = useState('Récents');
+  const [displayCount, setDisplayCount] = useState(10);
+  const observerTarget = React.useRef<HTMLDivElement>(null);
+
+  // Reset display count when sorting changes
+  useEffect(() => {
+    setDisplayCount(10);
+  }, [sortOption]);
+
+  const sortedClaims = React.useMemo(() => {
+    let sorted = [...claims];
+    
+    // Filter by user preferences (blocked categories)
+    if (user?.preferences?.blockedCategories) {
+      sorted = sorted.filter(c => !user.preferences!.blockedCategories.includes(c.category));
+    }
+
+    switch (sortOption) {
+      case 'Populaires':
+        // Popularity: mix of votes count and comments
+        sorted.sort((a, b) => {
+          const totalA = (Object.values(a.votes) as number[]).reduce((sum, v) => sum + v, 0) + a.comments.length;
+          const totalB = (Object.values(b.votes) as number[]).reduce((sum, v) => sum + v, 0) + b.comments.length;
+          return totalB - totalA;
+        });
+        break;
+      case 'Votes':
+        // Strict total votes sort
+        sorted.sort((a, b) => {
+          const totalA = (Object.values(a.votes) as number[]).reduce((sum, v) => sum + v, 0);
+          const totalB = (Object.values(b.votes) as number[]).reduce((sum, v) => sum + v, 0);
+          return totalB - totalA;
+        });
+        break;
+      case 'Controversés':
+         sorted.sort((a, b) => {
+           const commentsDiff = b.comments.length - a.comments.length;
+           if (commentsDiff !== 0) return commentsDiff;
+           return b.timestamp - a.timestamp;
+         });
+         break;
+      case 'Mieux rémunérés':
+        sorted.sort((a, b) => b.bountyAmount - a.bountyAmount);
+        break;
+      case 'Récents':
+      default:
+        sorted.sort((a, b) => b.timestamp - a.timestamp);
+    }
+    return sorted;
+  }, [claims, user?.preferences?.blockedCategories, sortOption]);
+
+  const visibleClaims = sortedClaims.slice(0, displayCount);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setDisplayCount((prev) => Math.min(prev + 5, sortedClaims.length));
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [sortedClaims.length]);
+
+  return (
+    <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Actualités à vérifier</h2>
+          <div className="flex space-x-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+            <select className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 hidden sm:block text-slate-700 dark:text-slate-200">
+              <option>Toutes catégories</option>
+              <option>Politique</option>
+              <option>Tech</option>
+            </select>
+            <select 
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 cursor-pointer text-slate-700 dark:text-slate-200 flex-1 sm:flex-none"
+            >
+              <option value="Récents">Récents</option>
+              <option value="Populaires">Populaires</option>
+              <option value="Votes">Plus Votés</option>
+              <option value="Controversés">Controversés</option>
+              <option value="Mieux rémunérés">Mieux rémunérés</option>
+            </select>
+          </div>
+        </div>
+        
+        {visibleClaims.map((claim, index) => (
+          <React.Fragment key={claim.id}>
+            {/* Insert Ad every 5 posts */}
+            {index > 0 && index % 5 === 0 && (
+              <AdUnit 
+                label="Espace Publicitaire" 
+                className="my-6 shadow-sm border-slate-200 dark:border-slate-700"
+              />
+            )}
+            <ClaimCard 
+              claim={{
+                ...claim,
+                // Map user vote from history for current user view
+                userVote: user ? claim.voteHistory?.find(v => v.userId === user.id)?.voteType : undefined,
+                userVoteTimestamp: user ? claim.voteHistory?.find(v => v.userId === user.id)?.timestamp : undefined
+              }} 
+              onClick={() => navigate(`/claim/${claim.id}`)}
+              currentUser={user || { id: 'guest', name: 'Guest', walletBalance: 0 } as User}
+              onUpdate={onUpdateClaim}
+              onVote={onVote}
+            />
+          </React.Fragment>
+        ))}
+        
+        {/* Loading Sentinel */}
+        {visibleClaims.length < sortedClaims.length && (
+            <div ref={observerTarget} className="py-6 flex justify-center w-full">
+               <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            </div>
+        )}
+        
+        {visibleClaims.length >= sortedClaims.length && sortedClaims.length > 0 && (
+            <div className="text-center py-8 text-slate-400 text-sm">
+               Vous avez atteint la fin de la liste.
+            </div>
+        )}
+        
+        {sortedClaims.length === 0 && (
+           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+               <p className="text-slate-500 dark:text-slate-400">Aucune actualité disponible pour le moment.</p>
+           </div>
+        )}
+      </div>
+  );
+};
 
 // Helper Component for Protected Routes
 interface ProtectedRouteProps {
@@ -43,7 +195,6 @@ const App: React.FC = () => {
   // Init state with empty values, will load from StorageService
   const [user, setUser] = useState<User | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [sortOption, setSortOption] = useState('Récents');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
 
@@ -263,91 +414,24 @@ const App: React.FC = () => {
     }, 2000);
   };
 
-  const getSortedClaims = () => {
-    let sorted = [...claims];
-    
-    // Filter by user preferences (blocked categories)
-    if (user?.preferences?.blockedCategories) {
-      sorted = sorted.filter(c => !user.preferences!.blockedCategories.includes(c.category));
-    }
-
-    switch (sortOption) {
-      case 'Populaires':
-        sorted.sort((a, b) => {
-          const totalA = (Object.values(a.votes) as number[]).reduce((sum, v) => sum + v, 0);
-          const totalB = (Object.values(b.votes) as number[]).reduce((sum, v) => sum + v, 0);
-          return totalB - totalA;
-        });
-        break;
-      case 'Controversés':
-         sorted.sort((a, b) => {
-           const commentsDiff = b.comments.length - a.comments.length;
-           if (commentsDiff !== 0) return commentsDiff;
-           return b.timestamp - a.timestamp;
-         });
-         break;
-      case 'Mieux rémunérés':
-        sorted.sort((a, b) => b.bountyAmount - a.bountyAmount);
-        break;
-      case 'Récents':
-      default:
-        sorted.sort((a, b) => b.timestamp - a.timestamp);
-    }
-    return sorted;
-  };
-
-  const FeedContent = () => {
-    const sortedClaims = getSortedClaims();
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Actualités à vérifier</h2>
-          <div className="flex space-x-2">
-            <select className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 hidden sm:block text-slate-700 dark:text-slate-200">
-              <option>Toutes catégories</option>
-              <option>Politique</option>
-              <option>Tech</option>
-            </select>
-            <select 
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 cursor-pointer text-slate-700 dark:text-slate-200"
-            >
-              <option value="Récents">Récents</option>
-              <option value="Populaires">Populaires</option>
-              <option value="Controversés">Controversés</option>
-              <option value="Mieux rémunérés">Mieux rémunérés</option>
-            </select>
-          </div>
-        </div>
-        
-        {sortedClaims.map(claim => (
-          <ClaimCard 
-            key={claim.id} 
-            claim={{
-              ...claim,
-              // Map user vote from history for current user view
-              userVote: user ? claim.voteHistory?.find(v => v.userId === user.id)?.voteType : undefined,
-              userVoteTimestamp: user ? claim.voteHistory?.find(v => v.userId === user.id)?.timestamp : undefined
-            }} 
-            onClick={() => navigate(`/claim/${claim.id}`)}
-            currentUser={user || { id: 'guest', name: 'Guest', walletBalance: 0 } as User}
-            onUpdate={handleUpdateClaim}
-            onVote={handleVote}
-          />
-        ))}
-      </div>
-    );
-  };
-
   // Safe user object for child components that require it, fallback to minimal object if null
   // (Though protected routes prevent accessing those components if user is null)
   const safeUser = user!;
 
+  // Map claims with user context for Profile view
+  const enrichedClaims = claims.map(c => ({
+    ...c,
+    userVote: user ? c.voteHistory?.find(v => v.userId === user.id)?.voteType : undefined,
+    userVoteTimestamp: user ? c.voteHistory?.find(v => v.userId === user.id)?.timestamp : undefined
+  }));
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans relative transition-colors duration-300">
-      <Navbar user={user || { id: 'guest', name: 'Visiteur', avatar: '', expertLevel: ExpertLevel.OBSERVER } as User} isAuthenticated={isAuthenticated} onLogout={handleLogout} />
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans relative transition-colors duration-500 ease-in-out">
+      <Navbar user={user || { id: 'guest', name: 'Visiteur', avatar: '', expertLevel: ExpertLevel.OBSERVER } as User} isAuthenticated={isAuthenticated} onLogout={handleLogout} isDarkMode={user?.preferences?.darkMode} onToggleTheme={() => {
+        if (user) {
+          handleUpdateUser({...user, preferences: {...(user.preferences || {}), darkMode: !user.preferences?.darkMode} as any});
+        }
+      }} />
 
       {/* Withdraw Modal */}
       {showWithdrawModal && user && (
@@ -460,16 +544,17 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content with Mobile Bottom Padding */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 pb-20 sm:pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Main Content Area */}
           <div className="lg:col-span-8">
             <Routes>
-              <Route path="/" element={<FeedContent />} />
+              <Route path="/" element={<Feed claims={claims} user={user} onUpdateClaim={handleUpdateClaim} onVote={handleVote} />} />
               <Route path="/login" element={<Login onLogin={handleLogin} />} />
               <Route path="/leaderboard" element={<Leaderboard users={StorageService.getUsers()} />} />
-              <Route path="/network" element={<Network users={StorageService.getUsers()} />} />
+              <Route path="/network" element={<Network users={StorageService.getUsers()} currentUser={user} />} />
               <Route path="/submit" element={
                 <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <SubmitClaim 
@@ -490,7 +575,7 @@ const App: React.FC = () => {
                 <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <Profile 
                     user={safeUser}
-                    claims={claims}
+                    claims={enrichedClaims}
                     onUpdate={handleUpdateClaim}
                     onVote={handleVote}
                     onUpdateUser={handleUpdateUser}
@@ -509,7 +594,7 @@ const App: React.FC = () => {
             </Routes>
           </div>
 
-          {/* Right Sidebar (Desktop) */}
+          {/* Right Sidebar (Desktop Only) */}
           <div className="hidden lg:block lg:col-span-4 space-y-6">
             
             {/* Wallet / Remuneration Widget - Only if authenticated */}
@@ -570,6 +655,12 @@ const App: React.FC = () => {
                 Essayer gratuitement
               </button>
             </div>
+
+            {/* Sidebar AdSense Unit */}
+            <AdUnit 
+              label="Publicité Partenaire" 
+              className="my-4 border-slate-200 dark:border-slate-700"
+            />
 
             {/* Trending Topics */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">

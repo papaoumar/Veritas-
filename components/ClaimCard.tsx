@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Claim, VoteType, User, Comment, ExpertLevel, Transaction } from '../types';
-import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CreditCard, ExternalLink } from 'lucide-react';
+import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CreditCard, ExternalLink, CheckCircle, ChevronDown, ChevronUp, BookOpen, Globe, RefreshCw, Copy } from 'lucide-react';
 import { analyzeClaimWithGemini } from '../geminiService';
 import { VideoPlayer } from './VideoPlayer';
 
@@ -20,9 +20,15 @@ const VOTE_EXPIRATION_MS = VOTE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000;
 const VXT_EXCHANGE_RATE = 0.01; // 1 VXT = 0.01 $
 const MIN_BALANCE_RESERVE = 20; // Solde minimum à conserver
 
+// Defined at the top to avoid hoisting issues
+const TrophyIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+);
+
 export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUser, onUpdate, onVote }) => {
   const navigate = useNavigate();
   const [isCopied, setIsCopied] = useState(false);
+  const [isSourcesCopied, setIsSourcesCopied] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [filterVoteType, setFilterVoteType] = useState<VoteType | null>(null);
   const [showComments, setShowComments] = useState(false);
@@ -30,7 +36,9 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const [imageUrlInput, setImageUrlInput] = useState(claim.imageUrl || '');
   const [videoUrlInput, setVideoUrlInput] = useState(claim.videoUrl || '');
   const [showAllHistory, setShowAllHistory] = useState(false);
-  const [showSources, setShowSources] = useState(false);
+  
+  // State for expanded details (Accordion)
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Vote History Modal State
   const [showVoteHistoryDetails, setShowVoteHistoryDetails] = useState(false);
@@ -122,15 +130,6 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
     }
   };
 
-  const getAuthorBadgeColor = (level: ExpertLevel) => {
-    switch (level) {
-      case ExpertLevel.MASTER: return 'text-purple-600 bg-purple-50 border-purple-100 dark:text-purple-300 dark:bg-purple-900/30 dark:border-purple-800';
-      case ExpertLevel.EXPERT: return 'text-emerald-600 bg-emerald-50 border-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800';
-      case ExpertLevel.ANALYST: return 'text-blue-600 bg-blue-50 border-blue-100 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800';
-      default: return 'text-slate-500 bg-slate-50 border-slate-100 dark:text-slate-400 dark:bg-slate-800 dark:border-slate-700';
-    }
-  };
-
   const formatVoteDate = (timestamp: number) => {
     const date = new Date(timestamp);
     return `le ${date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')}`;
@@ -138,11 +137,39 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
 
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Use hash router format for sharing
     const url = `${window.location.origin}/#/claim/${claim.id}`;
-    navigator.clipboard.writeText(url);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+
+    // Copie directe dans le presse-papiers avec confirmation visuelle
+    navigator.clipboard.writeText(url).then(() => {
+      setIsCopied(true);
+      setNotificationMsg("Lien copié !");
+      setTimeout(() => {
+        setIsCopied(false);
+        setNotificationMsg(null);
+      }, 2000);
+    }).catch(() => {
+      // Fallback au cas où writeText échoue
+      setNotificationMsg("Erreur lors de la copie");
+      setTimeout(() => setNotificationMsg(null), 2000);
+    });
+  };
+
+  const handleCopySources = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!claim.aiAnalysis?.sources || claim.aiAnalysis.sources.length === 0) return;
+
+    const text = claim.aiAnalysis.sources
+      .map(s => `- ${s.title}: ${s.uri}`)
+      .join('\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+      setIsSourcesCopied(true);
+      setNotificationMsg("Sources copiées !");
+      setTimeout(() => {
+        setIsSourcesCopied(false);
+        setNotificationMsg(null);
+      }, 2000);
+    });
   };
 
   const handleSubscribe = (e: React.MouseEvent) => {
@@ -157,6 +184,11 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const handleFilterClick = (e: React.MouseEvent, type: VoteType | null) => {
     e.stopPropagation();
     setFilterVoteType(prev => prev === type ? null : type);
+  };
+
+  const toggleExpanded = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsExpanded(!isExpanded);
   };
 
   const handleVoteClick = (e: React.MouseEvent, type: VoteType) => {
@@ -286,6 +318,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         aiAnalysis: analysis
       });
       setNotificationMsg("Analyse terminée !");
+      setIsExpanded(true); // Auto expand to show results
     } catch (error) {
       console.error("Failed to analyze claim", error);
       alert("L'analyse a échoué. Veuillez réessayer.");
@@ -324,6 +357,8 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         confidence: analysis.confidence,
         verdict: analysis.verdict
       });
+      
+      setIsExpanded(true); // Auto expand to show results
 
     } catch (error) {
       console.error("AI Verify failed", error);
@@ -388,6 +423,14 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
             opacity: 0; 
             transform: translate(150px, -600px) scale(0.2); 
           }
+        }
+        @keyframes pop {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.25); }
+          100% { transform: scale(1); }
+        }
+        .animate-pop {
+          animation: pop 0.3s ease-out;
         }
       `}</style>
     </div>
@@ -464,7 +507,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   return (
     <div 
       onClick={onClick}
-      className="bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/20 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 bg-[length:200%_200%] animate-gradient-subtle rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-xl hover:scale-[1.02] hover:border-indigo-200 dark:hover:border-indigo-800 transition-all duration-300 ease-out cursor-pointer flex flex-col relative group"
+      className="bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/20 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 bg-[length:200%_200%] animate-gradient-subtle rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-xl hover:scale-[1.01] sm:hover:scale-[1.02] hover:border-indigo-200 dark:hover:border-indigo-800 transition-all duration-300 ease-out cursor-pointer flex flex-col relative group"
     >
       <style>{`
         @keyframes gradient-shift {
@@ -479,7 +522,8 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
       
       {/* Notification Toast */}
       {notificationMsg && (
-        <div className="absolute top-4 right-4 z-20 bg-slate-900/90 dark:bg-slate-100/90 text-white dark:text-slate-900 px-3 py-1.5 rounded-full text-xs font-medium animate-in fade-in slide-in-from-top-2">
+        <div className="absolute top-4 right-4 z-20 bg-slate-900/90 dark:bg-slate-100/90 text-white dark:text-slate-900 px-3 py-1.5 rounded-full text-xs font-medium animate-in fade-in slide-in-from-top-2 flex items-center shadow-lg">
+          {notificationMsg.includes("copié") ? <CheckCircle className="w-3.5 h-3.5 mr-1.5 text-emerald-400" /> : <Bell className="w-3.5 h-3.5 mr-1.5" />}
           {notificationMsg}
         </div>
       )}
@@ -693,35 +737,27 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               alt={claim.author.name} 
               className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover"
             />
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white flex items-center">
-                {claim.author.name}
-                <UserIcon className="w-3.5 h-3.5 ml-1.5 text-slate-400 dark:text-slate-500" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white flex items-center flex-wrap">
+                <span className="truncate">{claim.author.name}</span>
+                <UserIcon className="w-3.5 h-3.5 ml-1.5 text-slate-400 dark:text-slate-500 hidden sm:inline" />
                 
                 {/* Author Balance - Clickable for Current User if Author */}
                 <button 
                    onClick={handleBalanceClick}
                    disabled={!isAuthor}
-                   className={`ml-2 flex items-center text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-100 dark:border-slate-700 transition-colors ${isAuthor ? 'hover:bg-amber-50 dark:hover:bg-slate-700 cursor-pointer group/balance' : 'cursor-default'}`}
+                   className={`ml-1 sm:ml-2 flex items-center text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-100 dark:border-slate-700 transition-colors ${isAuthor ? 'hover:bg-amber-50 dark:hover:bg-slate-700 cursor-pointer group/balance' : 'cursor-default'}`}
                    title={isAuthor ? `Voir mon historique de transactions` : `Solde VXT de l'auteur (~$${dollarBalance})`}
                 >
                   <Coins className="w-3 h-3 mr-1 text-amber-500" />
                   <span className="font-bold text-amber-700 dark:text-amber-500 mr-1">{displayBalance}</span>
-                  <span className="text-slate-400 font-normal">(${dollarBalance})</span>
-                  {isAuthor && <ArrowRight className="w-3 h-3 ml-1 opacity-0 group-hover/balance:opacity-100 transition-opacity text-slate-400" />}
+                  <span className="text-slate-400 font-normal hidden sm:inline">(${dollarBalance})</span>
                 </button>
-
-                {claim.author.isExpert && (
-                   <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] flex items-center border ${getAuthorBadgeColor(claim.author.expertLevel)}`}>
-                     <ShieldCheck className="w-3 h-3 mr-0.5" />
-                     {claim.author.expertLevel || 'Expert'}
-                   </span>
-                )}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">{new Date(claim.timestamp).toLocaleDateString('fr-FR')}</p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             {claim.bountyAmount > 0 && (
               <span className="flex items-center px-2 py-1 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-full" title="Récompense de participation">
                 <Coins className="w-3 h-3 mr-1" />
@@ -735,7 +771,13 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         </div>
 
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 leading-snug">{claim.title}</h3>
-        <p className="text-slate-600 dark:text-slate-300 text-sm line-clamp-3 mb-4">{claim.content}</p>
+        
+        {/* Content with Expand Toggle */}
+        <div className="mb-4">
+           <p className={`text-slate-600 dark:text-slate-300 text-sm ${isExpanded ? '' : 'line-clamp-3'}`}>
+             {claim.content}
+           </p>
+        </div>
 
         {/* Claim Media Carousel */}
         {(claim.imageUrl || claim.videoUrl) && (
@@ -787,56 +829,36 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         {/* AI Verdict Badge or Analysis Button */}
         <div className="mb-4">
           {claim.aiAnalysis ? (
-            <div>
-               <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${getVerdictColor(claim.aiAnalysis.verdict)}`}>
-                 <Cpu className="w-3 h-3 mr-1.5" />
-                 IA: {getVerdictLabel(claim.aiAnalysis.verdict)} ({claim.aiAnalysis.confidence}%)
-               </div>
-               {claim.aiAnalysis.sources && claim.aiAnalysis.sources.length > 0 && (
-                 <div className="mt-2">
-                   <button 
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       setShowSources(!showSources);
-                     }}
-                     className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center font-medium transition-colors"
-                   >
-                     {showSources ? (
-                        <>
-                          Masquer les sources <ArrowUp className="w-3 h-3 ml-1" />
-                        </>
-                     ) : (
-                        <>
-                          Voir les sources ({claim.aiAnalysis.sources.length}) <ArrowDown className="w-3 h-3 ml-1" />
-                        </>
-                     )}
-                   </button>
-                   {showSources && (
-                     <div className="mt-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in slide-in-from-top-1">
-                       <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                         {claim.aiAnalysis.sources.map((source, idx) => (
-                           <li key={idx} className="hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                             <a 
-                               href={source.uri} 
-                               target="_blank" 
-                               rel="noopener noreferrer" 
-                               className="flex items-center justify-between p-2 text-xs text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 group/link" 
-                               onClick={(e) => e.stopPropagation()}
-                               title={source.title}
-                             >
-                               <span className="truncate mr-2 flex-1 flex items-center">
-                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 shrink-0"></span>
-                                 {source.title}
-                               </span>
-                               <ExternalLink className="w-3 h-3 text-slate-400 group-hover/link:text-blue-500 transition-colors shrink-0" />
-                             </a>
-                           </li>
-                         ))}
-                       </ul>
-                     </div>
-                   )}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+               <div className="flex items-center gap-2">
+                 <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${getVerdictColor(claim.aiAnalysis.verdict)}`}>
+                   <Cpu className="w-3 h-3 mr-1.5" />
+                   IA: {getVerdictLabel(claim.aiAnalysis.verdict)} ({claim.aiAnalysis.confidence}%)
                  </div>
-               )}
+                 <button
+                    onClick={handleAnalyzeClaim}
+                    disabled={isAnalyzingClaim}
+                    className={`p-1.5 rounded-full text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors ${isAnalyzingClaim ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title="Relancer une nouvelle analyse IA"
+                 >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzingClaim ? 'animate-spin' : ''}`} />
+                 </button>
+               </div>
+               
+               <button 
+                  onClick={toggleExpanded}
+                  className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 rounded-full transition-colors"
+               >
+                  {isExpanded ? (
+                    <>
+                      Masquer détails <ChevronUp className="w-3 h-3 ml-1" />
+                    </>
+                  ) : (
+                    <>
+                      Voir l'analyse complète <ChevronDown className="w-3 h-3 ml-1" />
+                    </>
+                  )}
+               </button>
             </div>
           ) : (
              <button
@@ -852,14 +874,111 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                 {isAnalyzingClaim ? "Analyse en cours..." : "Lancer l'analyse IA"}
              </button>
           )}
+
+          {/* Expanded Analysis Details */}
+          {isExpanded && claim.aiAnalysis && (
+            <div className="mt-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 p-4 animate-in fade-in slide-in-from-top-2">
+               
+               {/* Summary Section */}
+               <div className="flex items-start mb-4">
+                  <BookOpen className="w-4 h-4 text-indigo-500 mr-2 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase mb-1">Résumé de l'analyse</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {claim.aiAnalysis.summary}
+                    </p>
+                  </div>
+               </div>
+
+               {/* Proof/Sources Section */}
+               {claim.aiAnalysis.sources && claim.aiAnalysis.sources.length > 0 && (
+                 <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase flex items-center">
+                        <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" />
+                        Preuves IA (Sources Vérifiées)
+                      </h4>
+                      <button 
+                        onClick={handleCopySources}
+                        className={`text-[10px] font-medium px-2 py-1 rounded-full flex items-center transition-colors border ${isSourcesCopied ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' : 'bg-white text-slate-500 border-slate-200 hover:text-indigo-600 hover:border-indigo-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:text-indigo-400'}`}
+                        title="Copier toutes les sources dans le presse-papiers"
+                      >
+                         {isSourcesCopied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                         {isSourcesCopied ? 'Copié !' : 'Copier sources'}
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                       {claim.aiAnalysis.sources.slice(0, 4).map((source, idx) => {
+                         let hostname = source.uri;
+                         try { hostname = new URL(source.uri).hostname; } catch(e) {}
+                         const displayHostname = hostname.replace(/^www\./, '');
+                         const favicon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+                         
+                         return (
+                           <a 
+                             key={idx}
+                             href={source.uri} 
+                             target="_blank" 
+                             rel="noopener noreferrer" 
+                             className="flex items-center p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md hover:-translate-y-0.5 transition-all group/source active:scale-[0.98]"
+                             onClick={(e) => e.stopPropagation()}
+                             title={`Ouvrir : ${source.uri}`}
+                           >
+                             <div className="bg-slate-50 dark:bg-slate-700 p-1.5 rounded-md mr-3 flex-shrink-0 border border-slate-100 dark:border-slate-600 group-hover/source:border-indigo-200 dark:group-hover/source:border-indigo-800 transition-colors">
+                                <img 
+                                  src={favicon} 
+                                  alt="" 
+                                  className="w-4 h-4 object-contain opacity-90 group-hover/source:opacity-100"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
+                                  }}
+                                />
+                                <Globe className="w-4 h-4 text-slate-400 hidden fallback-icon" />
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate group-hover/source:text-indigo-600 dark:group-hover/source:text-indigo-400 transition-colors">
+                                  {source.title || displayHostname}
+                                </p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center">
+                                  {displayHostname}
+                                </p>
+                             </div>
+                             <div className="flex items-center text-xs font-medium text-slate-400 group-hover/source:text-indigo-600 dark:group-hover/source:text-indigo-400 transition-colors bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-full group-hover/source:bg-indigo-50 dark:group-hover/source:bg-indigo-900/30">
+                                Ouvrir <ExternalLink className="w-3 h-3 ml-1" />
+                             </div>
+                           </a>
+                         );
+                       })}
+                       
+                       {claim.aiAnalysis.sources.length > 4 && (
+                          <div className="text-center pt-1">
+                             <button 
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 navigate(`/claim/${claim.id}`);
+                               }}
+                               className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors"
+                             >
+                               + {claim.aiAnalysis.sources.length - 4} autres sources disponibles
+                             </button>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+               )}
+            </div>
+          )}
         </div>
 
         {/* Media URL Inputs */}
         <div className="mb-4 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
-          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
-            Médias (Image / Vidéo)
+          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide flex items-center">
+            <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
+            Ajouter Médias & Vérification IA
           </label>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex gap-2 items-center">
               <div className="relative flex-1">
                  <input
@@ -870,27 +989,28 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                     if (mediaCheck?.type === 'image') setMediaCheck(null);
                   }}
                   onKeyDown={(e) => handleInputKeyDown(e, 'image')}
-                  placeholder="URL de l'image"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="URL de l'image (https://...)"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 pl-8"
                   onClick={(e) => e.stopPropagation()}
                 />
+                <ImageIcon className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
               </div>
               <button
                 onClick={handleImagePreview}
                 className="px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm font-medium rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center whitespace-nowrap border border-indigo-100 dark:border-indigo-800"
-                title="Afficher l'image"
+                title="Afficher l'image dans la carte"
               >
                 <Eye className="w-4 h-4 mr-1.5" />
                 Aperçu
               </button>
               <button
                 onClick={(e) => handleAiVerifyUrl(e, 'image')}
-                disabled={analyzingMedia === 'image'}
+                disabled={analyzingMedia === 'image' || !imageUrlInput}
                 className="px-3 py-2 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-medium rounded-md hover:bg-violet-200 dark:hover:bg-violet-900/50 disabled:opacity-50 transition-colors flex items-center whitespace-nowrap border border-violet-100 dark:border-violet-800"
-                title="Vérifier cette image avec l'IA"
+                title="Vérifier la crédibilité de l'image avec l'IA"
               >
-                {analyzingMedia === 'image' ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-                Vérifier
+                {analyzingMedia === 'image' ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
+                Analyser
               </button>
             </div>
             {/* Visual Indicator for Image Verification */}
@@ -902,18 +1022,21 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
             )}
 
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={videoUrlInput}
-                onChange={(e) => {
-                   setVideoUrlInput(e.target.value);
-                   if (mediaCheck?.type === 'video') setMediaCheck(null);
-                }}
-                onKeyDown={(e) => handleInputKeyDown(e, 'video')}
-                placeholder="URL Vidéo (YouTube, Vimeo, MP4)"
-                className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                onClick={(e) => e.stopPropagation()}
-              />
+               <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={videoUrlInput}
+                  onChange={(e) => {
+                     setVideoUrlInput(e.target.value);
+                     if (mediaCheck?.type === 'video') setMediaCheck(null);
+                  }}
+                  onKeyDown={(e) => handleInputKeyDown(e, 'video')}
+                  placeholder="URL Vidéo (YouTube, Vimeo...)"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 pl-8"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <Video className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+              </div>
               <button
                 onClick={handleVideoPreview}
                 className="px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm font-medium rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center whitespace-nowrap border border-indigo-100 dark:border-indigo-800"
@@ -924,12 +1047,12 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               </button>
                <button
                 onClick={(e) => handleAiVerifyUrl(e, 'video')}
-                disabled={analyzingMedia === 'video'}
+                disabled={analyzingMedia === 'video' || !videoUrlInput}
                 className="px-3 py-2 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-medium rounded-md hover:bg-violet-200 dark:hover:bg-violet-900/50 disabled:opacity-50 transition-colors flex items-center whitespace-nowrap border border-violet-100 dark:border-violet-800"
-                title="Vérifier cette vidéo avec l'IA"
+                title="Vérifier la crédibilité de la vidéo avec l'IA"
               >
-                {analyzingMedia === 'video' ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-                Vérifier
+                {analyzingMedia === 'video' ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
+                Analyser
               </button>
             </div>
              {/* Visual Indicator for Video Verification */}
@@ -953,13 +1076,35 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         )}
 
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-          <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${claim.userVote ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'}`}>
-            {claim.userVote ? 'Votre vote' : 'Voter sur cette affirmation'}
-          </h4>
+          
+          {claim.userVote ? (
+             <div className="mb-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-2.5 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center">
+                   <div className={`p-1 rounded-full mr-2 ${voteItems.find(v => v.type === claim.userVote)?.bgSelected.replace('bg-', 'bg-').replace('200', '100') || 'bg-indigo-100'}`}>
+                      {(() => {
+                        const VIcon = voteItems.find(v => v.type === claim.userVote)?.icon || CheckCircle;
+                        return <VIcon className={`w-3.5 h-3.5 ${voteItems.find(v => v.type === claim.userVote)?.color || 'text-indigo-600'}`} />;
+                      })()}
+                   </div>
+                   <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                      Vous avez voté : {voteItems.find(v => v.type === claim.userVote)?.label}
+                   </span>
+                </div>
+                {claim.userVoteTimestamp && (
+                   <span className="text-[10px] text-indigo-700 dark:text-indigo-300 opacity-80 font-medium">
+                      {new Date(claim.userVoteTimestamp).toLocaleDateString('fr-FR')}
+                   </span>
+                )}
+             </div>
+          ) : (
+            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-slate-400 dark:text-slate-500">
+              Voter sur cette affirmation
+            </h4>
+          )}
 
           {/* Vote Filters & History Toggle */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2 text-xs overflow-x-auto pb-1 hide-scrollbar">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+            <div className="flex items-center space-x-2 text-xs overflow-x-auto pb-1 hide-scrollbar w-full sm:w-auto">
               <span className="text-slate-400 flex items-center whitespace-nowrap"><Filter className="w-3 h-3 mr-1" /> Filtrer:</span>
               {[
                 { type: VoteType.TRUE, label: 'Vrai', activeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-800' },
@@ -990,7 +1135,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               )}
             </div>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 self-end sm:self-auto">
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1021,8 +1166,8 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-sm flex-wrap gap-y-2">
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1 hide-scrollbar max-w-full">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-slate-500 dark:text-slate-400 text-sm gap-3">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               {visibleVotes.map((item) => {
                 const isSelected = claim.userVote === item.type;
                 const itemCost = getVoteCost(item.type);
@@ -1035,6 +1180,9 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                 const isDisabled = !isSelected && (!canAfford || !reserveMet);
                 
                 const percentage = totalDisplayVotes > 0 ? Math.round((item.count / totalDisplayVotes) * 100) : 0;
+                
+                // Check if this button is currently animating
+                const isAnimating = animatingVote === item.type;
 
                 // Determine tooltip message
                 let tooltip = `Voter (Coût: ${itemCost} VXT)`;
@@ -1051,7 +1199,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                     <button 
                       onClick={(e) => handleVoteClick(e, item.type)}
                       disabled={isDisabled}
-                      className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                      className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap active:scale-95 ${isAnimating ? 'animate-pop ring-4 ring-indigo-500/30' : ''} ${
                         isSelected 
                           ? `border-2 ring-2 ring-offset-1 ${item.ringColor} ${item.borderColor} ${item.selectedColor.replace('text', 'bg').replace('900', '100').replace('200', '900')} shadow-md font-bold transform scale-105 z-10 dark:ring-offset-slate-900` 
                           : isDisabled
@@ -1099,7 +1247,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               })}
             </div>
 
-            <div className="flex items-center space-x-4 ml-auto">
+            <div className="flex items-center space-x-4 w-full sm:w-auto justify-end sm:justify-start">
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1205,6 +1353,3 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
     </div>
   );
 };
-const TrophyIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-)

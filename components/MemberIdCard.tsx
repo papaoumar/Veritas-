@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { User, ExpertLevel } from '../types';
-import { Shield, Globe, QrCode, Cpu, Fingerprint, ScanLine } from 'lucide-react';
+import { Shield, Globe, QrCode, Cpu, Fingerprint, ScanLine, Target, Award, Zap, Star } from 'lucide-react';
 
 interface MemberIdCardProps {
   user: User;
@@ -49,7 +49,6 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({ user }) => {
   const theme = getTheme(user.expertLevel);
 
   // Génération d'un code unique déterministe basé sur l'ID et le nom
-  // Cela crée une fausse "clé unique" qui reste la même pour un utilisateur donné
   const generateUniqueSerial = () => {
     const str = user.id + user.name + (user.memberSince || 0);
     let hash = 0;
@@ -62,6 +61,14 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({ user }) => {
   };
 
   const uniqueSerial = generateUniqueSerial();
+
+  // Badges logic (replicated here for display on card without extra state)
+  const earnedBadges = [
+    { icon: Target, condition: user.stats.accuracyRate > 80, color: 'text-emerald-400' },
+    { icon: Award, condition: user.stats.totalVerifications >= 100, color: 'text-amber-400' },
+    { icon: Zap, condition: user.stats.currentStreak >= 10, color: 'text-rose-400' },
+    { icon: Star, condition: user.expertLevel === ExpertLevel.MASTER, color: 'text-purple-400' }
+  ].filter(b => b.condition);
 
   // Génération d'un motif "ADN" visuel unique
   const renderDigitalDNA = () => {
@@ -173,10 +180,22 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({ user }) => {
                      {uniqueSerial}
                    </span>
                 </div>
-                <div className="group/field">
-                   <span className="block text-[7px] text-slate-400 uppercase tracking-widest mb-0.5">Valid Thru</span>
-                   <span className="font-mono text-slate-200 tracking-wider">12/28</span>
+                
+                {/* Badges Row on Card */}
+                <div className="col-span-2 mt-1">
+                   <div className="flex gap-1.5">
+                     {earnedBadges.length > 0 ? (
+                       earnedBadges.map((badge, idx) => (
+                         <div key={idx} className={`p-1 rounded-full bg-white/10 border border-white/20 ${badge.color}`}>
+                           <badge.icon className="w-3 h-3" />
+                         </div>
+                       ))
+                     ) : (
+                       <span className="text-[8px] text-slate-500 italic">No badges issued</span>
+                     )}
+                   </div>
                 </div>
+
                 <div className="pt-1 border-t border-white/5 col-span-2 flex justify-between items-end mt-1">
                     <div>
                        <span className="block text-[7px] text-slate-400 uppercase tracking-widest mb-0.5">Accuracy</span>

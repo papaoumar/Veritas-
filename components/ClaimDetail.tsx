@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Claim, VoteType } from '../types';
 import { analyzeClaimWithGemini } from '../geminiService';
-import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Cpu, Globe, Share2, Shield, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Cpu, Globe, Share2, Shield, Calendar, FileText, Check } from 'lucide-react';
 import { VideoPlayer } from './VideoPlayer';
+import { AdUnit } from './AdUnit';
 
 interface ClaimDetailProps {
   claims: Claim[];
@@ -17,6 +18,7 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
   const navigate = useNavigate();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   const claim = claims.find(c => c.id === id);
 
@@ -59,6 +61,30 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
       ...claim,
       votes: updatedVotes
     });
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/#/claim/${claim.id}`;
+    
+    // Try native share first (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Veritas',
+          text: claim.title,
+          url: url
+        });
+        return;
+      } catch (err) {
+        // Fallback to clipboard if share cancelled or failed
+      }
+    }
+
+    // Fallback to clipboard
+    navigator.clipboard.writeText(url);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const getVerdictIcon = (verdict: VoteType) => {
@@ -155,8 +181,12 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
             </div>
             
             <div className="flex space-x-2">
-               <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all">
-                 <Share2 className="w-5 h-5" />
+               <button 
+                onClick={handleShare}
+                className={`p-2 rounded-full transition-all ${isCopied ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                title={isCopied ? "Lien copié !" : "Partager"}
+               >
+                 {isCopied ? <Check className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
                </button>
             </div>
           </div>
@@ -191,7 +221,7 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
         </div>
 
         {/* Right Column: AI Analysis */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           {!claim.aiAnalysis ? (
              <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl shadow-lg p-8 text-white flex flex-col items-center text-center">
                <Cpu className="w-16 h-16 mb-4 opacity-90" />
@@ -292,6 +322,12 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
               </div>
             </div>
           )}
+
+          {/* Ad below analysis */}
+          <AdUnit 
+             label="Publicité Contextuelle" 
+             className="border-slate-200 dark:border-slate-700"
+          />
         </div>
       </div>
     </div>

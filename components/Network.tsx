@@ -2,14 +2,15 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { User, ExpertLevel } from '../types';
-import { MemberIdCard } from './MemberIdCard';
+import { SocialCard } from './SocialCard';
 import { Search, Filter, Globe, MapPin, X } from 'lucide-react';
 
 interface NetworkProps {
   users: User[];
+  currentUser?: User | null;
 }
 
-export const Network: React.FC<NetworkProps> = ({ users }) => {
+export const Network: React.FC<NetworkProps> = ({ users, currentUser }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState<string>('All');
@@ -79,7 +80,7 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row gap-4 justify-between items-center">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8 flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-96">
            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
            <input 
@@ -87,14 +88,14 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
              placeholder="Rechercher un membre..."
              value={searchTerm}
              onChange={(e) => setSearchTerm(e.target.value)}
-             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+             className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
            />
         </div>
 
         <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 items-center">
            <div className="flex items-center hidden md:flex">
              <Filter className="w-4 h-4 mr-2 text-slate-400" />
-             <span className="text-sm font-medium text-slate-700 mr-2">Filtres:</span>
+             <span className="text-sm font-medium text-slate-700 dark:text-slate-300 mr-2">Filtres:</span>
            </div>
            
            {/* Country Filter */}
@@ -105,13 +106,7 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
              <select 
                value={filterCountry}
                onChange={handleCountryChange}
-               className="border border-slate-300 rounded-lg pl-9 pr-8 py-2 text-sm bg-slate-50 focus:ring-indigo-500 min-w-[180px] appearance-none cursor-pointer hover:bg-slate-50 transition-colors"
-               style={{ 
-                 backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, 
-                 backgroundPosition: `right 0.5rem center`, 
-                 backgroundRepeat: `no-repeat`, 
-                 backgroundSize: `1.5em 1.5em` 
-               }}
+               className="border border-slate-300 dark:border-slate-600 rounded-lg pl-9 pr-8 py-2 text-sm bg-slate-50 dark:bg-slate-700 focus:ring-indigo-500 min-w-[180px] appearance-none cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors text-slate-700 dark:text-white"
              >
                <option value="All">🌍 Tous les pays ({users.length})</option>
                {countries.map(c => (
@@ -124,7 +119,7 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
            <select 
              value={filterLevel}
              onChange={(e) => setFilterLevel(e.target.value)}
-             className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors"
+             className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-slate-50 dark:bg-slate-700 focus:ring-indigo-500 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors text-slate-700 dark:text-white"
            >
              <option value="All">Tous niveaux</option>
              <option value={ExpertLevel.OBSERVER}>{ExpertLevel.OBSERVER}</option>
@@ -137,7 +132,7 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
            {hasActiveFilters && (
              <button 
                onClick={handleResetFilters}
-               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                title="Réinitialiser les filtres"
              >
                <X className="w-4 h-4" />
@@ -148,12 +143,12 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
 
       {/* Grid */}
       {filteredUsers.length === 0 ? (
-        <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-          <Globe className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">Aucun membre trouvé pour ces critères.</p>
+        <div className="text-center py-12 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+          <Globe className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Aucun membre trouvé pour ces critères.</p>
           <button 
             onClick={handleResetFilters}
-            className="mt-2 text-indigo-600 text-sm hover:underline"
+            className="mt-2 text-indigo-600 dark:text-indigo-400 text-sm hover:underline"
           >
             Réinitialiser les filtres
           </button>
@@ -161,7 +156,7 @@ export const Network: React.FC<NetworkProps> = ({ users }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUsers.map(user => (
-            <MemberIdCard key={user.id} user={user} />
+            <SocialCard key={user.id} user={user} currentUser={currentUser} />
           ))}
         </div>
       )}
