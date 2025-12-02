@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Claim, VoteType, User, Comment, ExpertLevel, Transaction } from '../types';
-import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CreditCard } from 'lucide-react';
+import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CreditCard, ExternalLink } from 'lucide-react';
 import { analyzeClaimWithGemini } from '../geminiService';
 import { VideoPlayer } from './VideoPlayer';
 
@@ -799,21 +799,41 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                        e.stopPropagation();
                        setShowSources(!showSources);
                      }}
-                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center font-medium"
+                     className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center font-medium transition-colors"
                    >
-                     {showSources ? 'Masquer les sources' : 'Voir les sources'}
+                     {showSources ? (
+                        <>
+                          Masquer les sources <ArrowUp className="w-3 h-3 ml-1" />
+                        </>
+                     ) : (
+                        <>
+                          Voir les sources ({claim.aiAnalysis.sources.length}) <ArrowDown className="w-3 h-3 ml-1" />
+                        </>
+                     )}
                    </button>
                    {showSources && (
-                     <ul className="mt-2 space-y-1 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800 text-xs animate-in fade-in slide-in-from-top-1">
-                       {claim.aiAnalysis.sources.map((source, idx) => (
-                         <li key={idx}>
-                           <a href={source.uri} target="_blank" rel="noopener noreferrer" className="flex items-start text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 truncate" onClick={(e) => e.stopPropagation()}>
-                             <span className="mr-1.5 text-blue-400">•</span>
-                             <span className="truncate">{source.title}</span>
-                           </a>
-                         </li>
-                       ))}
-                     </ul>
+                     <div className="mt-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden animate-in fade-in slide-in-from-top-1">
+                       <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                         {claim.aiAnalysis.sources.map((source, idx) => (
+                           <li key={idx} className="hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
+                             <a 
+                               href={source.uri} 
+                               target="_blank" 
+                               rel="noopener noreferrer" 
+                               className="flex items-center justify-between p-2 text-xs text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 group/link" 
+                               onClick={(e) => e.stopPropagation()}
+                               title={source.title}
+                             >
+                               <span className="truncate mr-2 flex-1 flex items-center">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 shrink-0"></span>
+                                 {source.title}
+                               </span>
+                               <ExternalLink className="w-3 h-3 text-slate-400 group-hover/link:text-blue-500 transition-colors shrink-0" />
+                             </a>
+                           </li>
+                         ))}
+                       </ul>
+                     </div>
                    )}
                  </div>
                )}
