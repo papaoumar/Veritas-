@@ -70,6 +70,7 @@ const SEED_USERS: User[] = [
     bio: 'Passionné par la vérité et la data science. Je vérifie tout ce qui bouge.',
     bannerUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800&q=80',
     socialStats: { followers: 142, following: 28 },
+    followingIds: [],
     country: 'France',
     memberSince: Date.now() - 100000000,
     isExpert: false,
@@ -92,6 +93,7 @@ const SEED_USERS: User[] = [
     bio: 'Journaliste d\'investigation indépendante. Spécialisée en Tech et IA.',
     bannerUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80',
     socialStats: { followers: 3500, following: 120 },
+    followingIds: [],
     country: 'USA',
     memberSince: Date.now() - 200000000,
     isExpert: true,
@@ -118,7 +120,8 @@ const SEED_USERS: User[] = [
     walletBalance: 8000,
     transactions: generateMockTransactions(8000),
     preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
-    referralStats: { code: 'VERITAS-ADM', totalReferred: 500, totalEarnings: 25000, pendingEarnings: 0 }
+    referralStats: { code: 'VERITAS-ADM', totalReferred: 500, totalEarnings: 25000, pendingEarnings: 0 },
+    followingIds: []
   },
   {
     id: 'u5',
@@ -135,7 +138,8 @@ const SEED_USERS: User[] = [
     walletBalance: 2100,
     transactions: generateMockTransactions(2100),
     preferences: { language: 'en', emailNotifications: true, marketingEmails: true, publicProfile: true, showBalance: true, darkMode: true, blockedCategories: [] },
-    referralStats: { code: 'HIROSHI-77', totalReferred: 5, totalEarnings: 250, pendingEarnings: 50 }
+    referralStats: { code: 'HIROSHI-77', totalReferred: 5, totalEarnings: 250, pendingEarnings: 50 },
+    followingIds: []
   },
   {
     id: 'u6',
@@ -152,7 +156,8 @@ const SEED_USERS: User[] = [
     walletBalance: 850,
     transactions: generateMockTransactions(850),
     preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
-    referralStats: { code: 'AMARA-K-22', totalReferred: 2, totalEarnings: 100, pendingEarnings: 0 }
+    referralStats: { code: 'AMARA-K-22', totalReferred: 2, totalEarnings: 100, pendingEarnings: 0 },
+    followingIds: []
   },
   {
     id: 'u7',
@@ -169,7 +174,8 @@ const SEED_USERS: User[] = [
     walletBalance: 420,
     transactions: generateMockTransactions(420),
     preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
-    referralStats: { code: 'AMI-ML', totalReferred: 3, totalEarnings: 150, pendingEarnings: 0 }
+    referralStats: { code: 'AMI-ML', totalReferred: 3, totalEarnings: 150, pendingEarnings: 0 },
+    followingIds: []
   },
   {
     id: 'u8',
@@ -186,7 +192,8 @@ const SEED_USERS: User[] = [
     walletBalance: 1200,
     transactions: generateMockTransactions(1200),
     preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
-    referralStats: { code: 'BIL-BF', totalReferred: 8, totalEarnings: 400, pendingEarnings: 50 }
+    referralStats: { code: 'BIL-BF', totalReferred: 8, totalEarnings: 400, pendingEarnings: 50 },
+    followingIds: []
   },
   {
     id: 'u9',
@@ -203,7 +210,8 @@ const SEED_USERS: User[] = [
     walletBalance: 150,
     transactions: generateMockTransactions(150),
     preferences: { language: 'fr', emailNotifications: true, marketingEmails: false, publicProfile: true, showBalance: true, darkMode: false, blockedCategories: [] },
-    referralStats: { code: 'IBR-NE', totalReferred: 1, totalEarnings: 50, pendingEarnings: 0 }
+    referralStats: { code: 'IBR-NE', totalReferred: 1, totalEarnings: 50, pendingEarnings: 0 },
+    followingIds: []
   }
 ];
 
@@ -295,6 +303,59 @@ export const StorageService = {
     const users = StorageService.getUsers();
     const updatedUsers = users.filter(u => u.id !== userId);
     localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+  },
+
+  toggleFollow: (followerId: string, targetId: string): { updatedFollower: User, updatedTarget: User } | null => {
+    const users = StorageService.getUsers();
+    const followerIndex = users.findIndex(u => u.id === followerId);
+    const targetIndex = users.findIndex(u => u.id === targetId);
+
+    if (followerIndex === -1 || targetIndex === -1) return null;
+
+    const follower = users[followerIndex];
+    const target = users[targetIndex];
+
+    const currentFollowing = follower.followingIds || [];
+    const isFollowing = currentFollowing.includes(targetId);
+
+    if (isFollowing) {
+      // Unfollow
+      follower.followingIds = currentFollowing.filter(id => id !== targetId);
+      follower.socialStats = { 
+        ...follower.socialStats, 
+        following: Math.max(0, (follower.socialStats?.following || 0) - 1),
+        followers: follower.socialStats?.followers || 0
+      };
+      
+      target.socialStats = {
+        ...target.socialStats,
+        followers: Math.max(0, (target.socialStats?.followers || 0) - 1),
+        following: target.socialStats?.following || 0
+      };
+    } else {
+      // Follow
+      follower.followingIds = [...currentFollowing, targetId];
+      follower.socialStats = { 
+        ...follower.socialStats, 
+        following: (follower.socialStats?.following || 0) + 1,
+        followers: follower.socialStats?.followers || 0
+      };
+
+      target.socialStats = {
+        ...target.socialStats,
+        followers: (target.socialStats?.followers || 0) + 1,
+        following: target.socialStats?.following || 0
+      };
+    }
+
+    // Update in array
+    users[followerIndex] = follower;
+    users[targetIndex] = target;
+
+    // Persist
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+
+    return { updatedFollower: follower, updatedTarget: target };
   },
 
   getClaims: (): Claim[] => {

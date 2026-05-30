@@ -1,22 +1,43 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, ExpertLevel } from '../types';
 import { UserPlus, UserCheck, Shield, MapPin, Target, Award, Zap, Star } from 'lucide-react';
 
 interface SocialCardProps {
   user: User;
   currentUser?: User | null;
-  onFollow?: () => void;
+  onFollow?: (userId: string) => void;
   className?: string;
 }
 
 export const SocialCard: React.FC<SocialCardProps> = ({ user, currentUser, onFollow, className = '' }) => {
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(user.socialStats?.followers || 0);
+
+  // Sync state with props changes
+  useEffect(() => {
+    if (currentUser && currentUser.followingIds) {
+      setIsFollowing(currentUser.followingIds.includes(user.id));
+    } else {
+      setIsFollowing(false);
+    }
+  }, [currentUser, user.id]);
+
+  useEffect(() => {
+    setFollowerCount(user.socialStats?.followers || 0);
+  }, [user.socialStats?.followers]);
 
   const handleFollowClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsFollowing(!isFollowing);
-    if (onFollow) onFollow();
+    
+    if (!onFollow) return;
+    
+    // Optimistic Update
+    const newIsFollowing = !isFollowing;
+    setIsFollowing(newIsFollowing);
+    setFollowerCount(prev => newIsFollowing ? prev + 1 : Math.max(0, prev - 1));
+    
+    onFollow(user.id);
   };
 
   const getLevelColor = (level: ExpertLevel) => {
@@ -76,7 +97,7 @@ export const SocialCard: React.FC<SocialCardProps> = ({ user, currentUser, onFol
 
           {/* Action Button */}
           <div className="mt-3">
-             {currentUser?.id !== user.id && (
+             {currentUser && currentUser.id !== user.id && (
                <button 
                  onClick={handleFollowClick}
                  className={`flex items-center px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
@@ -142,7 +163,7 @@ export const SocialCard: React.FC<SocialCardProps> = ({ user, currentUser, onFol
           {/* Stats Grid */}
           <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
              <div className="text-center">
-                <span className="block text-sm font-bold text-slate-900 dark:text-white">{user.socialStats?.followers || 0}</span>
+                <span className="block text-sm font-bold text-slate-900 dark:text-white">{followerCount}</span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide font-medium">Abonnés</span>
              </div>
              <div className="text-center border-l border-slate-100 dark:border-slate-700">

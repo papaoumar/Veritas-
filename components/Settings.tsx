@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserPreferences } from '../types';
-import { Shield, Lock, Bell, Eye, Save, Smartphone, Mail, Globe, CheckCircle, Moon, Trash2, Sliders, HelpCircle, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
+import { Shield, Lock, Bell, Eye, Save, Smartphone, Mail, Globe, CheckCircle, Moon, Trash2, Sliders, HelpCircle, AlertTriangle, FileText, ExternalLink, Zap } from 'lucide-react';
 
 interface SettingsProps {
   user: User;
@@ -30,6 +30,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
   // Notifications
   const [emailNotifs, setEmailNotifs] = useState(user.preferences?.emailNotifications ?? true);
   const [marketingEmails, setMarketingEmails] = useState(user.preferences?.marketingEmails ?? false);
+  const [pushNotifs, setPushNotifs] = useState(user.preferences?.pushNotifications ?? false);
 
   // Appearance
   const [darkMode, setDarkMode] = useState(user.preferences?.darkMode || false);
@@ -48,6 +49,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
         blockedCategories,
         emailNotifications: emailNotifs,
         marketingEmails,
+        pushNotifications: pushNotifs,
         publicProfile,
         showBalance,
         darkMode
@@ -57,6 +59,30 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
     onUpdateUser(updatedUser);
     setSuccessMsg("Paramètres mis à jour avec succès");
     setTimeout(() => setSuccessMsg(null), 3000);
+  };
+
+  const handlePushToggle = async (checked: boolean) => {
+    if (checked) {
+      if (!("Notification" in window)) {
+        alert("Ce navigateur ne supporte pas les notifications.");
+        return;
+      }
+
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          setPushNotifs(true);
+        } else {
+          setPushNotifs(false);
+          alert("Permission refusée. Veuillez activer les notifications dans les paramètres de votre navigateur pour recevoir les mises à jour importantes.");
+        }
+      } catch (error) {
+        console.error("Erreur lors de la demande de permission", error);
+        setPushNotifs(false);
+      }
+    } else {
+      setPushNotifs(false);
+    }
   };
 
   const toggleCategory = (category: string) => {
@@ -351,7 +377,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center">
                   <Mail className="w-5 h-5 mr-2 text-indigo-500" />
-                  Préférences Email
+                  Préférences de Notification
                 </h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
@@ -361,6 +387,22 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" checked={emailNotifs} onChange={(e) => setEmailNotifs(e.target.checked)} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
+                    <div>
+                      <p className="font-medium text-slate-900 dark:text-white">Notifications Push & Alertes</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Recevoir des alertes instantanées sur votre appareil (réponses, suivi).</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={pushNotifs} 
+                        onChange={(e) => handlePushToggle(e.target.checked)} 
+                        className="sr-only peer" 
+                      />
                       <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                     </label>
                   </div>
@@ -393,7 +435,20 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser, onDelete
                     <p className="text-sm text-slate-500 dark:text-slate-400">Activer le thème sombre pour une expérience visuelle plus confortable la nuit.</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={darkMode} onChange={(e) => setDarkMode(e.target.checked)} className="sr-only peer" />
+                    <input 
+                      type="checkbox" 
+                      checked={darkMode} 
+                      onChange={(e) => {
+                        const isDark = e.target.checked;
+                        setDarkMode(isDark);
+                        if (isDark) {
+                          document.documentElement.classList.add('dark');
+                        } else {
+                          document.documentElement.classList.remove('dark');
+                        }
+                      }} 
+                      className="sr-only peer" 
+                    />
                     <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                   </label>
                 </div>

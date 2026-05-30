@@ -7,6 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
+      // Polyfill process for browser environments to prevent ReferenceError
+      window.process = window.process || { env: { API_KEY: '' } };
+
       tailwind.config = {
         darkMode: 'class',
         theme: {
@@ -42,22 +45,40 @@
       .dark .custom-scrollbar::-webkit-scrollbar-thumb {
         background-color: #334155;
       }
+      
+      /* Global Animations */
+      @keyframes fly-to-wallet {
+        0% { 
+          opacity: 0; 
+          transform: translate(-50%, 0) scale(0.5); 
+        }
+        15% { 
+          opacity: 1; 
+          transform: translate(-50%, -40px) scale(1.2); 
+        }
+        100% { 
+          opacity: 0; 
+          transform: translate(150px, -600px) scale(0.2); 
+        }
+      }
+      @keyframes pop {
+        0% { transform: scale(1); }
+        40% { transform: scale(1.25); }
+        100% { transform: scale(1); }
+      }
+      .animate-pop {
+        animation: pop 0.3s ease-out;
+      }
+      @keyframes gradient-shift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+      }
+      .animate-gradient-subtle {
+          animation: gradient-shift 15s ease infinite;
+      }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.344.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
-  }
-}
-</script>
-</head>
+  </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-500 ease-in-out">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

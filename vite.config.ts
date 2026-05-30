@@ -10,13 +10,17 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Polyfill de process.env pour le navigateur afin de respecter la consigne d'utilisation de process.env.API_KEY
-      'process.env.API_KEY': JSON.stringify(env.API_KEY),
-      'process.env': JSON.stringify(env)
+      // Polyfill de process.env pour le navigateur
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || '')
     },
     build: {
       outDir: 'dist',
       sourcemap: false
+    },
+    server: {
+      port: 3000,
+      host: '0.0.0.0',
+      allowedHosts: true
     }
   };
 });

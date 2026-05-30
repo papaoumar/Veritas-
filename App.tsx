@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
@@ -11,7 +12,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { Network } from './components/Network';
 import { AdUnit } from './components/AdUnit';
 import { Claim, User, VoteType, PaymentMethod, ExpertLevel, Transaction } from './types';
-import { TrendingUp, Award, Zap, Coins, Wallet, X, CreditCard, Landmark, CheckCircle, ArrowRight, Shield } from 'lucide-react';
+import { TrendingUp, Award, Zap, Coins, Wallet, X, CreditCard, Landmark, CheckCircle, ArrowRight, Shield, Search } from 'lucide-react';
 import { StorageService } from './storageService';
 
 // Helpers
@@ -36,15 +37,25 @@ const Feed: React.FC<{
   const navigate = useNavigate();
   const [sortOption, setSortOption] = useState('Récents');
   const [displayCount, setDisplayCount] = useState(10);
+  const [searchQuery, setSearchQuery] = useState('');
   const observerTarget = React.useRef<HTMLDivElement>(null);
 
-  // Reset display count when sorting changes
+  // Reset display count when sorting or searching changes
   useEffect(() => {
     setDisplayCount(10);
-  }, [sortOption]);
+  }, [sortOption, searchQuery]);
 
   const sortedClaims = React.useMemo(() => {
     let sorted = [...claims];
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      sorted = sorted.filter(c => 
+        c.title.toLowerCase().includes(query) || 
+        c.content.toLowerCase().includes(query)
+      );
+    }
     
     // Filter by user preferences (blocked categories)
     if (user?.preferences?.blockedCategories) {
@@ -83,7 +94,7 @@ const Feed: React.FC<{
         sorted.sort((a, b) => b.timestamp - a.timestamp);
     }
     return sorted;
-  }, [claims, user?.preferences?.blockedCategories, sortOption]);
+  }, [claims, user?.preferences?.blockedCategories, sortOption, searchQuery]);
 
   const visibleClaims = sortedClaims.slice(0, displayCount);
 
@@ -97,13 +108,15 @@ const Feed: React.FC<{
       { threshold: 0.1, rootMargin: '100px' }
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    const currentTarget = observerTarget.current;
+
+    if (currentTarget) {
+      observer.observe(currentTarget);
     }
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
       }
     };
   }, [sortedClaims.length]);
@@ -112,23 +125,37 @@ const Feed: React.FC<{
     <div className="space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Actualités à vérifier</h2>
-          <div className="flex space-x-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-            <select className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 hidden sm:block text-slate-700 dark:text-slate-200">
-              <option>Toutes catégories</option>
-              <option>Politique</option>
-              <option>Tech</option>
-            </select>
-            <select 
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 cursor-pointer text-slate-700 dark:text-slate-200 flex-1 sm:flex-none"
-            >
-              <option value="Récents">Récents</option>
-              <option value="Populaires">Populaires</option>
-              <option value="Votes">Plus Votés</option>
-              <option value="Controversés">Controversés</option>
-              <option value="Mieux rémunérés">Mieux rémunérés</option>
-            </select>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-slate-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Rechercher..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 dark:text-slate-200"
+              />
+            </div>
+            <div className="flex space-x-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              <select className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 hidden sm:block text-slate-700 dark:text-slate-200">
+                <option>Toutes catégories</option>
+                <option>Politique</option>
+                <option>Tech</option>
+              </select>
+              <select 
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value)}
+                className="sort-dropdown bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 cursor-pointer text-slate-700 dark:text-slate-200 flex-1 sm:flex-none"
+              >
+                <option value="Récents">Récents</option>
+                <option value="Populaires">Populaires</option>
+                <option value="Votes">Nombre total de votes</option>
+                <option value="Controversés">Controversés</option>
+                <option value="Mieux rémunérés">Mieux rémunérés</option>
+              </select>
+            </div>
           </div>
         </div>
         
@@ -195,6 +222,7 @@ const App: React.FC = () => {
   // Init state with empty values, will load from StorageService
   const [user, setUser] = useState<User | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [users, setUsers] = useState<User[]>([]); // Store all users for network features
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
 
@@ -210,6 +238,7 @@ const App: React.FC = () => {
 
     // Load Data
     setClaims(StorageService.getClaims());
+    setUsers(StorageService.getUsers());
     
     // Check Session
     const currentUser = StorageService.getCurrentUser();
@@ -256,6 +285,30 @@ const App: React.FC = () => {
   const handleUpdateUser = (updatedUser: User) => {
     setUser(updatedUser);
     StorageService.saveUser(updatedUser);
+    
+    // Update global users list as well
+    const updatedUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+    setUsers(updatedUsers);
+  };
+
+  const handleFollow = (targetUserId: string) => {
+    if (!user) {
+      alert("Vous devez être connecté pour suivre un utilisateur.");
+      return;
+    }
+
+    const result = StorageService.toggleFollow(user.id, targetUserId);
+    if (result) {
+      setUser(result.updatedFollower);
+      
+      // Update the target user in the global list to reflect follower count change
+      const updatedUsers = users.map(u => {
+        if (u.id === result.updatedFollower.id) return result.updatedFollower;
+        if (u.id === result.updatedTarget.id) return result.updatedTarget;
+        return u;
+      });
+      setUsers(updatedUsers);
+    }
   };
 
   const handleLogin = (loggedInUser: User) => {
@@ -416,7 +469,18 @@ const App: React.FC = () => {
 
   // Safe user object for child components that require it, fallback to minimal object if null
   // (Though protected routes prevent accessing those components if user is null)
-  const safeUser = user!;
+  // This fallback prevents "Cannot read properties of null" during the brief render cycle before redirect
+  const safeUser = user || { 
+    id: 'guest', 
+    name: 'Guest', 
+    avatar: '', 
+    email: '',
+    expertLevel: ExpertLevel.OBSERVER,
+    stats: { totalVerifications: 0, correctVerifications: 0, accuracyRate: 0, currentStreak: 0, reputationPoints: 0 },
+    credibilityScore: 0,
+    walletBalance: 0,
+    isExpert: false
+  } as User;
 
   // Map claims with user context for Profile view
   const enrichedClaims = claims.map(c => ({
@@ -553,8 +617,8 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Feed claims={claims} user={user} onUpdateClaim={handleUpdateClaim} onVote={handleVote} />} />
               <Route path="/login" element={<Login onLogin={handleLogin} />} />
-              <Route path="/leaderboard" element={<Leaderboard users={StorageService.getUsers()} />} />
-              <Route path="/network" element={<Network users={StorageService.getUsers()} currentUser={user} />} />
+              <Route path="/leaderboard" element={<Leaderboard users={users} />} />
+              <Route path="/network" element={<Network users={users} currentUser={user} onFollow={handleFollow} />} />
               <Route path="/submit" element={
                 <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <SubmitClaim 
@@ -579,6 +643,7 @@ const App: React.FC = () => {
                     onUpdate={handleUpdateClaim}
                     onVote={handleVote}
                     onUpdateUser={handleUpdateUser}
+                    onFollow={handleFollow}
                   />
                 </ProtectedRoute>
               } />
@@ -688,7 +753,7 @@ const App: React.FC = () => {
                 <button onClick={() => navigate('/leaderboard')} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Voir tout</button>
               </div>
               <div className="space-y-4">
-                {StorageService.getUsers().sort((a,b) => b.stats.reputationPoints - a.stats.reputationPoints).slice(0, 3).map((u, i) => (
+                {users.sort((a,b) => b.stats.reputationPoints - a.stats.reputationPoints).slice(0, 3).map((u, i) => (
                   <div key={u.id} className="flex items-center space-x-3">
                     <img src={u.avatar} alt="User" className="w-8 h-8 rounded-full border border-slate-100 dark:border-slate-600" />
                     <div className="flex-1">

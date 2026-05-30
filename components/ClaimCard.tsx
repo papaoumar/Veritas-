@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Claim, VoteType, User, Comment, ExpertLevel, Transaction } from '../types';
-import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, ArrowDownUp, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CreditCard, ExternalLink, CheckCircle, ChevronDown, ChevronUp, BookOpen, Globe, RefreshCw, Copy } from 'lucide-react';
-import { analyzeClaimWithGemini } from '../geminiService';
+import { Claim, VoteType, User, Comment, Transaction } from '../types';
+import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CheckCircle, ChevronDown, ChevronUp, BookOpen, Globe, RefreshCw, Copy, ExternalLink, Trophy } from 'lucide-react';
+import { analyzeClaimWithGemini, detectLogicalFallacies } from '../geminiService';
 import { VideoPlayer } from './VideoPlayer';
 
 interface ClaimCardProps {
@@ -20,9 +20,17 @@ const VOTE_EXPIRATION_MS = VOTE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000;
 const VXT_EXCHANGE_RATE = 0.01; // 1 VXT = 0.01 $
 const MIN_BALANCE_RESERVE = 20; // Solde minimum à conserver
 
-// Defined at the top to avoid hoisting issues
-const TrophyIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+// Flying Coin Component (Internal but outside main component to avoid remounts)
+const FlyingCoin = ({ amount }: { amount: number }) => (
+  <div className="absolute -top-6 left-1/2 pointer-events-none z-[9999]">
+    <div className="flex items-center font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap animate-[fly-to-wallet_1.2s_cubic-bezier(0.25,1,0.5,1)_forwards]">
+       <div className="relative">
+          <Coins className="w-8 h-8 text-amber-500 drop-shadow-lg" />
+          <div className="absolute inset-0 bg-yellow-400 rounded-full blur-lg opacity-50 animate-pulse"></div>
+       </div>
+       <span className="ml-1 text-xl drop-shadow-md">-{amount}</span>
+    </div>
+  </div>
 );
 
 export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUser, onUpdate, onVote }) => {
@@ -39,6 +47,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   
   // State for expanded details (Accordion)
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showSources, setShowSources] = useState(false);
   
   // Vote History Modal State
   const [showVoteHistoryDetails, setShowVoteHistoryDetails] = useState(false);
@@ -50,6 +59,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
 
   // General Claim Analysis State
   const [isAnalyzingClaim, setIsAnalyzingClaim] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Vote Confirmation State
   const [showVoteConfirmation, setShowVoteConfirmation] = useState(false);
@@ -60,11 +70,33 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
 
   // Balance History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<{days: number, hours: number, minutes: number} | null>(null);
 
   useEffect(() => {
     setImageUrlInput(claim.imageUrl || '');
     setVideoUrlInput(claim.videoUrl || '');
   }, [claim.imageUrl, claim.videoUrl]);
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const expirationTime = claim.timestamp + VOTE_EXPIRATION_MS;
+      const difference = expirationTime - Date.now();
+
+      if (difference > 0) {
+        setTimeLeft({
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60)
+        });
+      } else {
+        setTimeLeft(null);
+      }
+    };
+
+    calculateTimeLeft();
+    const intervalId = window.setInterval(calculateTimeLeft, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [claim.timestamp]);
 
   // Determine if the current user is the author to show live balance
   const isAuthor = currentUser.id === claim.author.id;
@@ -194,6 +226,11 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const handleVoteClick = (e: React.MouseEvent, type: VoteType) => {
     e.stopPropagation();
     
+    if (timeLeft === null && claim.userVote !== type) {
+      alert("Les votes sont clos pour cette annonce.");
+      return;
+    }
+
     // Check reserve logic before opening modal
     const voteCost = getVoteCost(type);
     
@@ -307,21 +344,28 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   const handleAnalyzeClaim = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsAnalyzingClaim(true);
+    setAiError(null);
     setNotificationMsg("Analyse IA en cours...");
     
     try {
       const fullText = `${claim.title}\n\n${claim.content}`;
-      const analysis = await analyzeClaimWithGemini(fullText);
+      const [analysis, fallacies] = await Promise.all([
+        analyzeClaimWithGemini(fullText),
+        detectLogicalFallacies(fullText)
+      ]);
       
       onUpdate({
         ...claim,
-        aiAnalysis: analysis
+        aiAnalysis: {
+          ...analysis,
+          fallacies
+        }
       });
       setNotificationMsg("Analyse terminée !");
       setIsExpanded(true); // Auto expand to show results
     } catch (error) {
       console.error("Failed to analyze claim", error);
-      alert("L'analyse a échoué. Veuillez réessayer.");
+      setAiError("L'analyse a échoué. Veuillez vérifier votre connexion et réessayer.");
     } finally {
       setIsAnalyzingClaim(false);
       setTimeout(() => setNotificationMsg(null), 3000);
@@ -399,43 +443,6 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
     return 'bg-red-100 text-red-700 border-red-200';
   };
 
-  // Flying Coin Component (Internal)
-  const FlyingCoin = ({ amount }: { amount: number }) => (
-    <div className="absolute -top-6 left-1/2 pointer-events-none z-[9999]">
-      <div className="flex items-center font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap animate-[fly-to-wallet_1.2s_cubic-bezier(0.25,1,0.5,1)_forwards]">
-         <div className="relative">
-            <Coins className="w-8 h-8 text-amber-500 drop-shadow-lg" />
-            <div className="absolute inset-0 bg-yellow-400 rounded-full blur-lg opacity-50 animate-pulse"></div>
-         </div>
-         <span className="ml-1 text-xl drop-shadow-md">-{amount}</span>
-      </div>
-      <style>{`
-        @keyframes fly-to-wallet {
-          0% { 
-            opacity: 0; 
-            transform: translate(-50%, 0) scale(0.5); 
-          }
-          15% { 
-            opacity: 1; 
-            transform: translate(-50%, -40px) scale(1.2); 
-          }
-          100% { 
-            opacity: 0; 
-            transform: translate(150px, -600px) scale(0.2); 
-          }
-        }
-        @keyframes pop {
-          0% { transform: scale(1); }
-          40% { transform: scale(1.25); }
-          100% { transform: scale(1); }
-        }
-        .animate-pop {
-          animation: pop 0.3s ease-out;
-        }
-      `}</style>
-    </div>
-  );
-
   // Define vote items data for rendering and sorting
   const voteItems = [
     { 
@@ -507,18 +514,8 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   return (
     <div 
       onClick={onClick}
-      className="bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/20 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 bg-[length:200%_200%] animate-gradient-subtle rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-xl hover:scale-[1.01] sm:hover:scale-[1.02] hover:border-indigo-200 dark:hover:border-indigo-800 transition-all duration-300 ease-out cursor-pointer flex flex-col relative group"
+      className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-2xl hover:-translate-y-2 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-500 ease-out cursor-pointer flex flex-col relative group overflow-hidden"
     >
-      <style>{`
-        @keyframes gradient-shift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient-subtle {
-          animation: gradient-shift 15s ease infinite;
-        }
-      `}</style>
       
       {/* Notification Toast */}
       {notificationMsg && (
@@ -689,12 +686,12 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
       {/* Confirmation Modal Overlay */}
       {showVoteConfirmation && (
         <div 
-          className="absolute inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200"
+          className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl p-6 max-w-sm w-full text-center">
-            <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 dark:text-amber-500">
-              <Coins className="w-6 h-6" />
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-6 max-w-sm w-full text-center transform animate-in zoom-in-95 duration-300">
+            <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 dark:text-amber-500 shadow-inner">
+              <Coins className="w-7 h-7" />
             </div>
             <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Confirmer le vote</h4>
             <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
@@ -754,7 +751,20 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                   <span className="text-slate-400 font-normal hidden sm:inline">(${dollarBalance})</span>
                 </button>
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{new Date(claim.timestamp).toLocaleDateString('fr-FR')}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span>{new Date(claim.timestamp).toLocaleDateString('fr-FR')}</span>
+                {timeLeft ? (
+                  <span className="mt-1 sm:mt-0 sm:ml-2 flex items-center text-orange-500 dark:text-orange-400 font-medium bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded border border-orange-100 dark:border-orange-800/50 w-fit">
+                    <CalendarClock className="w-3 h-3 mr-1" />
+                    Expire dans {timeLeft.days}j {timeLeft.hours}h
+                  </span>
+                ) : (
+                  <span className="mt-1 sm:mt-0 sm:ml-2 flex items-center text-red-500 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-800/50 w-fit">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    Votes clos
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2 flex-shrink-0">
@@ -762,6 +772,15 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               <span className="flex items-center px-2 py-1 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-full" title="Récompense de participation">
                 <Coins className="w-3 h-3 mr-1" />
                 +{claim.bountyAmount}
+              </span>
+            )}
+            {claim.difficulty && (
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                claim.difficulty === 'Facile' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                claim.difficulty === 'Moyen' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
+                'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
+              }`}>
+                {claim.difficulty}
               </span>
             )}
             <span className="px-2 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
@@ -782,14 +801,14 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         {/* Claim Media Carousel */}
         {(claim.imageUrl || claim.videoUrl) && (
           <div className="mb-4 group/carousel relative">
-             <div className={`flex overflow-x-auto snap-x snap-mandatory gap-4 custom-scrollbar pb-1 -mx-5 px-5 ${hasMultipleMedia ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+             <div className={`flex overflow-x-auto snap-x snap-mandatory gap-3 sm:gap-4 custom-scrollbar pb-2 -mx-4 px-4 sm:-mx-5 sm:px-5 ${hasMultipleMedia ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                 {/* Image Slide */}
                 {claim.imageUrl && (
-                  <div className={`flex-shrink-0 snap-center ${hasMultipleMedia ? 'w-[85%]' : 'w-full'}`}>
-                    <div className="rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative group/media h-full shadow-sm border border-slate-100 dark:border-slate-800">
+                  <div className={`flex-shrink-0 snap-center ${hasMultipleMedia ? 'w-[90%] sm:w-[70%]' : 'w-full sm:w-auto h-48 sm:h-64 sm:max-w-2xl'}`}>
+                    <div className="rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 relative group/media h-full shadow-sm border border-slate-200 dark:border-slate-800">
                       <button 
                          onClick={handleRemoveImage} 
-                         className="absolute top-2 right-2 bg-black/50 text-white p-1.5 rounded-full hover:bg-black/70 transition-colors z-20 opacity-0 group-hover/media:opacity-100"
+                         className="absolute top-2 right-2 bg-black/50 text-white p-1.5 rounded-full hover:bg-black/70 transition-colors z-20 sm:opacity-0 sm:group-hover/media:opacity-100"
                          title="Supprimer l'image"
                       >
                          <X className="w-4 h-4" />
@@ -805,7 +824,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
 
                 {/* Video Slide */}
                 {claim.videoUrl && (
-                   <div className={`flex-shrink-0 snap-center ${hasMultipleMedia ? 'w-[85%]' : 'w-full'}`}>
+                   <div className={`flex-shrink-0 snap-center ${hasMultipleMedia ? 'w-[90%] sm:w-[70%]' : 'w-full sm:w-[500px]'}`}>
                       <VideoPlayer url={claim.videoUrl} onRemove={handleRemoveVideo} canRemove={true} />
                    </div>
                 )}
@@ -817,12 +836,29 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
         {userEarnings > 0 && (
           <div className="mb-4 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-lg flex items-center justify-between animate-in fade-in">
              <div className="flex items-center text-xs font-medium text-emerald-800 dark:text-emerald-400">
-               <TrophyIcon className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" />
+               <Trophy className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" />
                Vos gains sur cette info
              </div>
              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center">
                +{userEarnings} VXT
              </span>
+          </div>
+        )}
+
+        {/* AI Error Banner */}
+        {aiError && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center text-xs text-red-700 dark:text-red-400">
+               <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+               <span>{aiError}</span>
+            </div>
+            <button
+              onClick={handleAnalyzeClaim}
+              className="ml-3 px-3 py-1 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs font-bold rounded-md hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors flex items-center whitespace-nowrap"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Réessayer
+            </button>
           </div>
         )}
 
@@ -890,17 +926,45 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                   </div>
                </div>
 
+               {/* Logical Fallacies Section */}
+               {claim.aiAnalysis.fallacies && claim.aiAnalysis.fallacies.length > 0 && (
+                 <div className="flex items-start mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 mr-2 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400 uppercase mb-1">Sophismes détectés</h4>
+                      <ul className="list-disc pl-4 text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                        {claim.aiAnalysis.fallacies.map((fallacy, idx) => (
+                          <li key={idx}>{fallacy}</li>
+                        ))}
+                      </ul>
+                    </div>
+                 </div>
+               )}
+
                {/* Proof/Sources Section */}
                {claim.aiAnalysis.sources && claim.aiAnalysis.sources.length > 0 && (
                  <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase flex items-center">
-                        <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" />
-                        Preuves IA (Sources Vérifiées)
-                      </h4>
+                    <div className="flex justify-between items-center mb-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSources(!showSources);
+                        }}
+                        className="flex items-center flex-1 py-2 text-left group/btn outline-none"
+                      >
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase flex items-center group-hover/btn:text-indigo-600 dark:group-hover/btn:text-indigo-400 transition-colors">
+                          <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-500" />
+                          Preuves IA ({claim.aiAnalysis.sources.length} sources)
+                        </h4>
+                        {showSources ? (
+                           <ChevronUp className="w-4 h-4 text-slate-400 group-hover/btn:text-indigo-500 ml-2" />
+                        ) : (
+                           <ChevronDown className="w-4 h-4 text-slate-400 group-hover/btn:text-indigo-500 ml-2" />
+                        )}
+                      </button>
                       <button 
                         onClick={handleCopySources}
-                        className={`text-[10px] font-medium px-2 py-1 rounded-full flex items-center transition-colors border ${isSourcesCopied ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' : 'bg-white text-slate-500 border-slate-200 hover:text-indigo-600 hover:border-indigo-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:text-indigo-400'}`}
+                        className={`ml-2 text-[10px] font-medium px-2 py-1 flex-shrink-0 rounded-full flex items-center transition-colors border ${isSourcesCopied ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' : 'bg-white text-slate-500 border-slate-200 hover:text-indigo-600 hover:border-indigo-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:text-indigo-400'}`}
                         title="Copier toutes les sources dans le presse-papiers"
                       >
                          {isSourcesCopied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
@@ -908,64 +972,52 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                       </button>
                     </div>
 
-                    <div className="space-y-2">
-                       {claim.aiAnalysis.sources.slice(0, 4).map((source, idx) => {
-                         let hostname = source.uri;
-                         try { hostname = new URL(source.uri).hostname; } catch(e) {}
-                         const displayHostname = hostname.replace(/^www\./, '');
-                         const favicon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-                         
-                         return (
-                           <a 
-                             key={idx}
-                             href={source.uri} 
-                             target="_blank" 
-                             rel="noopener noreferrer" 
-                             className="flex items-center p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md hover:-translate-y-0.5 transition-all group/source active:scale-[0.98]"
-                             onClick={(e) => e.stopPropagation()}
-                             title={`Ouvrir : ${source.uri}`}
-                           >
-                             <div className="bg-slate-50 dark:bg-slate-700 p-1.5 rounded-md mr-3 flex-shrink-0 border border-slate-100 dark:border-slate-600 group-hover/source:border-indigo-200 dark:group-hover/source:border-indigo-800 transition-colors">
-                                <img 
-                                  src={favicon} 
-                                  alt="" 
-                                  className="w-4 h-4 object-contain opacity-90 group-hover/source:opacity-100"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
-                                  }}
-                                />
-                                <Globe className="w-4 h-4 text-slate-400 hidden fallback-icon" />
-                             </div>
-                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate group-hover/source:text-indigo-600 dark:group-hover/source:text-indigo-400 transition-colors">
-                                  {source.title || displayHostname}
-                                </p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center">
-                                  {displayHostname}
-                                </p>
-                             </div>
-                             <div className="flex items-center text-xs font-medium text-slate-400 group-hover/source:text-indigo-600 dark:group-hover/source:text-indigo-400 transition-colors bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-full group-hover/source:bg-indigo-50 dark:group-hover/source:bg-indigo-900/30">
-                                Ouvrir <ExternalLink className="w-3 h-3 ml-1" />
-                             </div>
-                           </a>
-                         );
-                       })}
-                       
-                       {claim.aiAnalysis.sources.length > 4 && (
-                          <div className="text-center pt-1">
-                             <button 
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 navigate(`/claim/${claim.id}`);
-                               }}
-                               className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors"
+                    {showSources && (
+                      <div className="space-y-2 mt-2 animate-in slide-in-from-top-1 fade-in duration-200">
+                         {claim.aiAnalysis.sources.map((source, idx) => {
+                           let hostname = source.uri;
+                           try { hostname = new URL(source.uri).hostname; } catch(e) {}
+                           const displayHostname = hostname.replace(/^www\./, '');
+                           const favicon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+                           
+                           return (
+                             <a 
+                               key={idx}
+                               href={source.uri} 
+                               target="_blank" 
+                               rel="noopener noreferrer" 
+                               className="flex items-center p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md hover:-translate-y-0.5 transition-all group/source active:scale-[0.98]"
+                               onClick={(e) => e.stopPropagation()}
+                               title={`Ouvrir : ${source.uri}`}
                              >
-                               + {claim.aiAnalysis.sources.length - 4} autres sources disponibles
-                             </button>
-                          </div>
-                       )}
-                    </div>
+                               <div className="bg-slate-50 dark:bg-slate-700 p-1.5 rounded-md mr-3 flex-shrink-0 border border-slate-100 dark:border-slate-600 group-hover/source:border-indigo-200 dark:group-hover/source:border-indigo-800 transition-colors">
+                                  <img 
+                                    src={favicon} 
+                                    alt="" 
+                                    className="w-4 h-4 object-contain opacity-90 group-hover/source:opacity-100"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.parentElement?.querySelector('.fallback-icon')?.classList.remove('hidden');
+                                    }}
+                                  />
+                                  <Globe className="w-4 h-4 text-slate-400 hidden fallback-icon" />
+                               </div>
+                               <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate group-hover/source:text-indigo-600 dark:group-hover/source:text-indigo-400 transition-colors">
+                                    {source.title || displayHostname}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center">
+                                    {displayHostname}
+                                  </p>
+                               </div>
+                               <div className="flex items-center text-xs font-medium text-slate-400 group-hover/source:text-indigo-600 dark:group-hover/source:text-indigo-400 transition-colors bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-full group-hover/source:bg-indigo-50 dark:group-hover/source:bg-indigo-900/30">
+                                  Ouvrir <ExternalLink className="w-3 h-3 ml-1" />
+                               </div>
+                             </a>
+                           );
+                         })}
+                      </div>
+                    )}
                  </div>
                )}
             </div>
@@ -1133,6 +1185,25 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                   ✕
                 </button>
               )}
+              
+              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+              {/* Toggle History - Now next to filters */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAllHistory(!showAllHistory);
+                }}
+                className={`flex-shrink-0 flex items-center px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${
+                  showAllHistory 
+                    ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' 
+                    : 'bg-slate-50 text-slate-400 border-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:hover:text-slate-300'
+                }`}
+                title={showAllHistory ? "Afficher seulement les votes récents" : "Afficher tout l'historique"}
+              >
+                <History className="w-3 h-3 mr-1" />
+                {showAllHistory ? "Historique complet" : "Votes actifs (30j)"}
+              </button>
             </div>
             
             <div className="flex items-center space-x-2 self-end sm:self-auto">
@@ -1146,28 +1217,11 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                 >
                   <List className="w-4 h-4" />
                 </button>
-
-                {/* Toggle History */}
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAllHistory(!showAllHistory);
-                  }}
-                  className={`flex-shrink-0 flex items-center px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${
-                    showAllHistory 
-                      ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' 
-                      : 'bg-slate-50 text-slate-400 border-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:hover:text-slate-300'
-                  }`}
-                  title={showAllHistory ? "Afficher seulement les votes récents" : "Afficher tout l'historique"}
-                >
-                  <History className="w-3 h-3 mr-1" />
-                  {showAllHistory ? "Historique complet" : "Votes actifs (30j)"}
-                </button>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-slate-500 dark:text-slate-400 text-sm gap-3">
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-col flex-wrap items-start justify-between text-slate-500 dark:text-slate-400 text-sm gap-4">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto mt-1 sm:mt-0">
               {visibleVotes.map((item) => {
                 const isSelected = claim.userVote === item.type;
                 const itemCost = getVoteCost(item.type);
@@ -1176,8 +1230,9 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                 // New logic: Check if reserve is met after this potential vote
                 const reserveMet = (currentUser.walletBalance - itemCost) >= MIN_BALANCE_RESERVE;
                 
-                // Disable if: not selected AND (cant afford OR reserve not met)
-                const isDisabled = !isSelected && (!canAfford || !reserveMet);
+                const isExpired = timeLeft === null;
+                // Disable if: expired, or not selected AND (cant afford OR reserve not met)
+                const isDisabled = isExpired || (!isSelected && (!canAfford || !reserveMet));
                 
                 const percentage = totalDisplayVotes > 0 ? Math.round((item.count / totalDisplayVotes) * 100) : 0;
                 
@@ -1187,57 +1242,58 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                 // Determine tooltip message
                 let tooltip = `Voter (Coût: ${itemCost} VXT)`;
                 if (isDisabled) {
-                   if (!canAfford) tooltip = `Solde insuffisant (${currentUser.walletBalance} VXT) - Requis: ${itemCost} VXT`;
+                   if (isExpired) tooltip = `Les votes sont clos pour cette annonce.`;
+                   else if (!canAfford) tooltip = `Solde insuffisant (${currentUser.walletBalance} VXT) - Requis: ${itemCost} VXT`;
                    else if (!reserveMet) tooltip = `Solde après vote < ${MIN_BALANCE_RESERVE} VXT (Réserve requise)`;
                 }
 
                 return (
-                  <div key={item.type} className="flex items-center relative flex-shrink-0 group/vote-btn">
+                  <div key={item.type} className="flex items-center relative w-full sm:w-auto group/vote-btn">
                     {/* Render Flying Coin if this button triggered animation */}
                     {animatingVote === item.type && <FlyingCoin amount={itemCost} />}
                     
                     <button 
                       onClick={(e) => handleVoteClick(e, item.type)}
                       disabled={isDisabled}
-                      className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap active:scale-95 ${isAnimating ? 'animate-pop ring-4 ring-indigo-500/30' : ''} ${
+                      className={`flex items-center justify-center sm:justify-start w-full sm:w-auto space-x-1 px-3 py-2.5 sm:py-1.5 rounded-xl sm:rounded-lg transition-all duration-200 whitespace-nowrap active:scale-95 ${isAnimating ? 'animate-pop ring-4 ring-indigo-500/30' : ''} ${
                         isSelected 
-                          ? `border-2 ring-2 ring-offset-1 ${item.ringColor} ${item.borderColor} ${item.selectedColor.replace('text', 'bg').replace('900', '100').replace('200', '900')} shadow-md font-bold transform scale-105 z-10 dark:ring-offset-slate-900` 
+                          ? `border-2 ring-2 ring-offset-1 ${item.ringColor} ${item.borderColor} ${item.selectedColor.replace('text', 'bg').replace('900', '100').replace('200', '900')} shadow-md font-bold transform scale-100 sm:scale-105 z-10 dark:ring-offset-slate-900` 
                           : isDisabled
                             ? 'bg-slate-50 border border-slate-100 text-slate-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
-                            : `border border-transparent ${filterVoteType === item.type ? item.color + ' bg-opacity-10 ' + item.color.replace('text', 'bg') : item.hoverBg} text-slate-500 dark:text-slate-400 hover:${item.color.replace('text-', 'text-')}`
+                            : `border border-slate-200 sm:border-transparent dark:border-slate-700 sm:dark:border-transparent bg-white sm:bg-transparent dark:bg-slate-800 sm:dark:bg-transparent ${filterVoteType === item.type ? item.color + ' bg-opacity-10 ' + item.color.replace('text', 'bg') : item.hoverBg} text-slate-500 dark:text-slate-400 hover:${item.color.replace('text-', 'text-')}`
                       } ${isSelected ? item.selectedColor : ''}`}
                       title={tooltip}
                     >
-                      <item.icon className={`w-4 h-4 ${isSelected ? 'fill-current' : ''}`} />
+                      <item.icon className={`w-4 h-4 sm:w-4 sm:h-4 ${isSelected ? 'fill-current' : ''}`} />
                       
                       {/* Added Label text */}
-                      <span className="ml-1.5 text-sm font-medium hidden sm:inline">{item.label}</span>
+                      <span className="ml-1.5 text-xs sm:text-sm font-medium">{item.label}</span>
                       
                       {/* Added Check Icon if Selected */}
-                      {isSelected && <Check className="w-3.5 h-3.5 ml-1" />}
+                      {isSelected && <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 ml-0.5 sm:ml-1" />}
 
-                      <span className="ml-1.5">{item.count}</span>
+                      <span className="ml-1 text-xs sm:text-sm">{item.count}</span>
                       {totalDisplayVotes > 0 && (
-                        <span className="text-[10px] opacity-75 ml-1.5 font-medium">
+                        <span className="text-[10px] opacity-75 ml-1 font-medium hidden sm:inline">
                           ({percentage}%)
                         </span>
                       )}
                       
                       {/* Integrated Timestamp */}
                       {isSelected && claim.userVoteTimestamp && (
-                        <span className="ml-2 pl-2 border-l border-current/20 text-[10px] font-normal opacity-90 hidden sm:inline-block">
+                        <span className="ml-2 pl-2 border-l border-current/20 text-[10px] font-normal opacity-90 hidden lg:inline-block">
                            {formatVoteDate(claim.userVoteTimestamp)}
                         </span>
                       )}
                     </button>
                     {!isSelected && (
-                       <div className="ml-1 flex flex-col justify-center">
-                         <span className={`flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border transition-colors ${
+                       <div className="absolute -top-2.5 -right-1.5 sm:static sm:ml-1 flex flex-col justify-center shadow-sm sm:shadow-none rounded-full bg-white dark:bg-slate-900 sm:bg-transparent">
+                         <span className={`flex items-center text-[9px] sm:text-[10px] font-medium px-1 sm:px-1.5 py-0.5 rounded-full border transition-colors ${
                            isDisabled 
                              ? 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/30 dark:border-red-800' 
-                             : 'text-amber-600/60 dark:text-amber-400/60 bg-amber-50/50 dark:bg-amber-900/20 border-amber-100/50 dark:border-amber-800/30 opacity-80'
+                             : 'text-amber-600/80 dark:text-amber-400/80 bg-amber-50/90 sm:bg-amber-50/50 dark:bg-amber-900/80 sm:dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50'
                          }`} title={tooltip}>
-                           {isDisabled ? <AlertCircle className="w-3 h-3 mr-0.5" /> : <Coins className="w-3 h-3 mr-0.5 opacity-80" />}
+                           {isDisabled ? <AlertCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-0.5" /> : <Coins className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-0.5 opacity-80" />}
                            -{itemCost}
                          </span>
                        </div>
@@ -1247,7 +1303,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               })}
             </div>
 
-            <div className="flex items-center space-x-4 w-full sm:w-auto justify-end sm:justify-start">
+            <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-start pt-3 sm:pt-0 border-t border-slate-100 dark:border-slate-800 sm:border-0 mt-1 sm:mt-0">
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1281,7 +1337,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               {/* Simplified Share Button */}
               <button 
                 onClick={handleShare}
-                className={`flex items-center space-x-1 transition-colors ${isCopied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
+                className={`share-button flex items-center space-x-1 transition-colors ${isCopied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                 title={isCopied ? "Lien copié !" : "Copier le lien"}
               >
                 {isCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
@@ -1312,7 +1368,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
                       <span className="font-semibold text-xs text-slate-900 dark:text-white">{comment.userName}</span>
                       <div className="flex items-center space-x-2">
                         <span className="text-[10px] text-slate-400">
-                          {new Date(comment.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à {new Date(comment.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          le {new Date(comment.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à {new Date(comment.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <button
                           onClick={(e) => handleReportComment(e, comment.id)}

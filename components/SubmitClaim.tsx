@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Claim, VoteType } from '../types';
-import { Send, FileText, Tag, AlertCircle, Image as ImageIcon, Video, Eye, X } from 'lucide-react';
+import { Send, FileText, Tag, AlertCircle, Image as ImageIcon, Video, Eye, X, Activity } from 'lucide-react';
 
 interface SubmitClaimProps {
   onSubmit: (newClaim: Claim) => void;
@@ -13,6 +13,7 @@ export const SubmitClaim: React.FC<SubmitClaimProps> = ({ onSubmit, onCancel, cu
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('Politique');
+  const [difficulty, setDifficulty] = useState<'Facile' | 'Moyen' | 'Difficile'>('Moyen');
   const [imageUrl, setImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [previewMedia, setPreviewMedia] = useState<{type: 'image' | 'video', url: string} | null>(null);
@@ -68,6 +69,7 @@ export const SubmitClaim: React.FC<SubmitClaimProps> = ({ onSubmit, onCancel, cu
       },
       voteHistory: [],
       comments: [],
+      difficulty,
       bountyAmount: 0,
       imageUrl: imageUrl || undefined,
       videoUrl: videoUrl || undefined,
@@ -158,6 +160,26 @@ export const SubmitClaim: React.FC<SubmitClaimProps> = ({ onSubmit, onCancel, cu
                 <option>International</option>
                 <option>Tech</option>
                 <option>Rumeur / Réseaux Sociaux</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+              Difficulté de vérification estimée
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Activity className="h-5 w-5 text-slate-400" />
+              </div>
+              <select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as 'Facile' | 'Moyen' | 'Difficile')}
+                className="block w-full pl-10 pr-3 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+              >
+                <option value="Facile">Facile (Recherche rapide)</option>
+                <option value="Moyen">Moyen (Analyse de sources multiples)</option>
+                <option value="Difficile">Difficile (Expertise ou données complexes requises)</option>
               </select>
             </div>
           </div>

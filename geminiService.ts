@@ -69,3 +69,36 @@ export const analyzeClaimWithGemini = async (claimText: string): Promise<AiAnaly
     throw new Error("L'analyse IA a échoué. Veuillez réessayer.");
   }
 };
+
+export const detectLogicalFallacies = async (claimText: string): Promise<string[]> => {
+  try {
+    const prompt = `
+      Agis comme un expert en rhétorique et en pensée critique.
+      Analyse l'affirmation suivante et identifie UNIQUEMENT les sophismes logiques (erreurs de raisonnement ou biais) présents : "${claimText}".
+      
+      Ta réponse doit être une simple liste séparée par des virgules des sophismes détectés, sans autre texte. 
+      Si tu n'en détectes aucun, réponds "Aucun". 
+      Exemple: Ad hominem, Faux dilemme, Appel à l'émotion
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        temperature: 0.2,
+      },
+    });
+
+    const text = response.text?.trim() || "Aucun";
+    
+    if (text.toLowerCase().includes("aucun") || text === "") {
+      return [];
+    }
+
+    // Parse the comma separated string
+    return text.split(',').map(f => f.trim()).filter(f => f.length > 0);
+  } catch (error) {
+    console.error("Error detecting fallacies:", error);
+    return [];
+  }
+};

@@ -3,9 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Claim, VoteType } from '../types';
 import { analyzeClaimWithGemini } from '../geminiService';
-import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Cpu, Globe, Share2, Shield, Calendar, FileText, Check } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Cpu, Globe, Share2, Shield, Calendar, FileText, Check, CalendarClock, AlertCircle } from 'lucide-react';
 import { VideoPlayer } from './VideoPlayer';
 import { AdUnit } from './AdUnit';
+
+const VOTE_EXPIRATION_DAYS = 30;
+const VOTE_EXPIRATION_MS = VOTE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000;
 
 interface ClaimDetailProps {
   claims: Claim[];
@@ -19,8 +22,32 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<{days: number, hours: number, minutes: number} | null>(null);
 
   const claim = claims.find(c => c.id === id);
+
+  useEffect(() => {
+    if (!claim) return;
+    
+    const calculateTimeLeft = () => {
+      const expirationTime = claim.timestamp + VOTE_EXPIRATION_MS;
+      const difference = expirationTime - Date.now();
+
+      if (difference > 0) {
+        setTimeLeft({
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60)
+        });
+      } else {
+        setTimeLeft(null);
+      }
+    };
+
+    calculateTimeLeft();
+    const intervalId = window.setInterval(calculateTimeLeft, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [claim?.timestamp]);
 
   // Redirect or show error if claim not found
   if (!claim) {
@@ -128,14 +155,34 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
       {/* Main Content Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
         <div className="p-8">
-          <div className="flex items-center space-x-3 mb-6">
+          <div className="flex items-center flex-wrap gap-3 mb-6">
             <span className="px-3 py-1 text-xs font-semibold tracking-wider uppercase bg-blue-50 text-blue-700 rounded-full">
               {claim.category}
             </span>
+            {claim.difficulty && (
+              <span className={`px-3 py-1 text-xs font-semibold tracking-wider uppercase rounded-full ${
+                claim.difficulty === 'Facile' ? 'bg-emerald-50 text-emerald-700' :
+                claim.difficulty === 'Moyen' ? 'bg-amber-50 text-amber-700' :
+                'bg-rose-50 text-rose-700'
+              }`}>
+                {claim.difficulty}
+              </span>
+            )}
             <span className="text-slate-400 text-sm flex items-center">
               <Calendar className="w-3 h-3 mr-1" />
               {new Date(claim.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
+            {timeLeft ? (
+              <span className="flex items-center text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200">
+                <CalendarClock className="w-3 h-3 mr-1.5" />
+                Expire dans {timeLeft.days}j {timeLeft.hours}h
+              </span>
+            ) : (
+              <span className="flex items-center text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
+                <AlertCircle className="w-3 h-3 mr-1.5" />
+                Votes clos
+              </span>
+            )}
           </div>
 
           <h1 className="text-3xl font-extrabold text-slate-900 mb-6 leading-tight">

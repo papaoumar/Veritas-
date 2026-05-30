@@ -8,9 +8,10 @@ import { Search, Filter, Globe, MapPin, X } from 'lucide-react';
 interface NetworkProps {
   users: User[];
   currentUser?: User | null;
+  onFollow?: (userId: string) => void;
 }
 
-export const Network: React.FC<NetworkProps> = ({ users, currentUser }) => {
+export const Network: React.FC<NetworkProps> = ({ users, currentUser, onFollow }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState<string>('All');
@@ -156,7 +157,7 @@ export const Network: React.FC<NetworkProps> = ({ users, currentUser }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUsers.map(user => (
-            <SocialCard key={user.id} user={user} currentUser={currentUser} />
+            <SocialCard key={user.id} user={user} currentUser={currentUser} onFollow={onFollow} />
           ))}
         </div>
       )}

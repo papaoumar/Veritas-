@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { User, ExpertLevel } from '../types';
-import { Shield, Globe, QrCode, Cpu, Fingerprint, ScanLine, Target, Award, Zap, Star } from 'lucide-react';
+import { Shield, Globe, QrCode, Cpu, Fingerprint, Target, Award, Zap, Star } from 'lucide-react';
 
 interface MemberIdCardProps {
   user: User;

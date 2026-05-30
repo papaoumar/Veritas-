@@ -53,6 +53,7 @@ export interface UserPreferences {
   language: 'fr' | 'en';
   emailNotifications: boolean;
   marketingEmails: boolean;
+  pushNotifications?: boolean; // Nouvelle option pour les notifications push
   publicProfile: boolean;
   showBalance: boolean;
   darkMode: boolean;
@@ -77,6 +78,7 @@ export interface AiAnalysis {
   confidence: number;
   summary: string;
   sources: Source[];
+  fallacies?: string[];
   analyzedAt: number;
 }
 
@@ -92,6 +94,7 @@ export interface User {
     followers: number;
     following: number;
   };
+  followingIds?: string[]; // IDs des utilisateurs suivis
   country?: string;
   memberSince?: number;
   isExpert: boolean;
@@ -137,6 +140,7 @@ export interface Claim {
   comments: Comment[];
   imageUrl?: string;
   videoUrl?: string;
+  difficulty?: 'Facile' | 'Moyen' | 'Difficile';
   bountyAmount: number;
   isSubscribed?: boolean;
 }

@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { User, Claim, VoteType, PaymentMethod, ExpertLevel, Transaction } from '../types';
 import { ClaimCard } from './ClaimCard';
 import { SocialCard } from './SocialCard';
-import { Shield, Award, Activity, Clock, Wallet, CheckCircle, XCircle, AlertTriangle, FileText, CreditCard, Landmark, Save, TrendingUp, Target, Star, X, TrendingDown, Calendar, Zap, Users, Copy, Share2, DollarSign, Link, Eye, Filter, ArrowUp, ArrowDown, ArrowUpRight, ArrowDownLeft, Download, Search, Coins } from 'lucide-react';
+import { Shield, Award, Activity, Clock, Wallet, CheckCircle, XCircle, AlertTriangle, FileText, CreditCard, Landmark, Save, TrendingUp, Target, Star, X, TrendingDown, Calendar, Zap, Users, Copy, Share2, DollarSign, Link, Eye, Filter, ArrowUp, ArrowDown, ArrowUpRight, ArrowDownLeft, Download, Search, Coins, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ProfileProps {
@@ -12,9 +12,10 @@ interface ProfileProps {
   onUpdate: (updatedClaim: Claim) => void;
   onVote: (claimId: string, voteType: VoteType) => void;
   onUpdateUser: (updatedUser: User) => void;
+  onFollow: (userId: string) => void;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote, onUpdateUser }) => {
+export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote, onUpdateUser, onFollow }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'posts' | 'votes' | 'stats' | 'badges' | 'transactions' | 'payment' | 'affiliation'>('posts');
   const [showChartModal, setShowChartModal] = useState(false);
@@ -26,6 +27,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote
   // Transaction History State
   const [txSort, setTxSort] = useState<'desc' | 'asc'>('desc');
   const [txFilter, setTxFilter] = useState<string>('');
+  const [txTypeFilter, setTxTypeFilter] = useState<string>('ALL');
 
   // Payment Form State
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(user.paymentConfig?.method || PaymentMethod.NONE);
@@ -54,6 +56,11 @@ export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote
   const filteredTransactions = useMemo(() => {
     let txs = user.transactions || [];
     
+    // Filter by type
+    if (txTypeFilter !== 'ALL') {
+      txs = txs.filter(t => t.type === txTypeFilter);
+    }
+
     // Filter by search text
     if (txFilter) {
       const lowerFilter = txFilter.toLowerCase();
@@ -64,7 +71,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote
     return [...txs].sort((a, b) => {
       return txSort === 'desc' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp;
     });
-  }, [user.transactions, txSort, txFilter]);
+  }, [user.transactions, txSort, txFilter, txTypeFilter]);
 
   // Financial Stats
   const financialStats = useMemo(() => {
@@ -295,7 +302,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote
              >
                <X className="w-8 h-8" />
              </button>
-             <SocialCard user={user} currentUser={user} />
+             <SocialCard user={user} currentUser={user} onFollow={onFollow} />
              <p className="text-center text-white mt-4 text-sm opacity-80">Voici comment votre profil apparaît aux autres membres.</p>
           </div>
         </div>
@@ -714,28 +721,69 @@ export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote
         )}
 
         {activeTab === 'badges' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Header with Progress */}
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-10 -translate-y-10">
+                  <Award className="w-48 h-48" />
+                </div>
+                <div className="relative z-10 flex items-center justify-between">
+                   <div>
+                      <h3 className="text-2xl font-bold flex items-center mb-1">
+                         <Award className="w-7 h-7 mr-3 text-yellow-300" />
+                         Collection de Badges
+                      </h3>
+                      <p className="text-indigo-100 text-sm max-w-md">
+                        Débloquez des insignes prestigieux en participant activement à la vérification des faits et en maintenant une précision élevée.
+                      </p>
+                   </div>
+                   <div className="flex flex-col items-center justify-center bg-white/20 backdrop-blur-md rounded-xl p-4 border border-white/30 shadow-sm min-w-[100px]">
+                      <span className="text-3xl font-black">{acquiredBadgesCount} <span className="text-lg font-normal opacity-70">/ {badgesConfig.length}</span></span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">Débloqués</span>
+                   </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="mt-6 bg-black/20 rounded-full h-2 w-full overflow-hidden">
+                   <div 
+                     className="bg-yellow-400 h-full rounded-full transition-all duration-1000 ease-out"
+                     style={{ width: `${(acquiredBadgesCount / badgesConfig.length) * 100}%` }}
+                   ></div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {badgesConfig.map(badge => (
               <div 
                 key={badge.key} 
-                className={`bg-white dark:bg-slate-800 p-6 rounded-xl border shadow-sm flex flex-col items-center text-center transition-all ${
+                className={`bg-white dark:bg-slate-800 p-6 rounded-xl border shadow-sm flex flex-col items-center text-center transition-all duration-300 ${
                   badge.condition 
-                    ? `border-2 ${badge.borderClass} dark:border-opacity-50` 
+                    ? `border-2 ${badge.borderClass} dark:border-opacity-50 transform hover:-translate-y-1 hover:shadow-md` 
                     : 'border-slate-200 dark:border-slate-700 opacity-60 grayscale'
                 }`}
               >
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors ${badge.condition ? badge.bgClass + ' ' + badge.colorClass : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors relative ${badge.condition ? badge.bgClass + ' ' + badge.colorClass : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>
                   <badge.icon className="w-8 h-8" />
+                  {badge.condition && (
+                    <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full p-1 border-2 border-white dark:border-slate-800">
+                      <CheckCircle className="w-3 h-3" />
+                    </div>
+                  )}
                 </div>
-                <h3 className="font-bold text-slate-900 dark:text-white">{badge.name}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{badge.description}</p>
+                <h3 className="font-bold text-slate-900 dark:text-white text-lg">{badge.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-snug min-h-[40px]">{badge.description}</p>
                 {badge.condition ? (
-                  <span className="mt-3 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-xs font-bold rounded-full animate-in zoom-in">Acquis</span>
+                  <span className="mt-4 px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-xs font-bold rounded-full animate-in zoom-in flex items-center">
+                    <CheckCircle className="w-3 h-3 mr-1" /> Acquis
+                  </span>
                 ) : (
-                  <span className="mt-3 px-2 py-1 bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 text-xs font-bold rounded-full">Verrouillé</span>
+                  <span className="mt-4 px-3 py-1 bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 text-xs font-bold rounded-full flex items-center">
+                    <Lock className="w-3 h-3 mr-1" /> Verrouillé
+                  </span>
                 )}
               </div>
             ))}
+          </div>
           </div>
         )}
 
@@ -764,15 +812,28 @@ export const Profile: React.FC<ProfileProps> = ({ user, claims, onUpdate, onVote
 
              {/* Filter & Sort Controls */}
              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                <div className="relative w-full sm:w-64">
-                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                   <input 
-                     type="text" 
-                     placeholder="Rechercher une transaction..." 
-                     value={txFilter}
-                     onChange={(e) => setTxFilter(e.target.value)}
-                     className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-indigo-500 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
-                   />
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                   <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <input 
+                        type="text" 
+                        placeholder="Rechercher..." 
+                        value={txFilter}
+                        onChange={(e) => setTxFilter(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-indigo-500 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
+                      />
+                   </div>
+                   <select 
+                     value={txTypeFilter}
+                     onChange={(e) => setTxTypeFilter(e.target.value)}
+                     className="w-full sm:w-auto px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-indigo-500 outline-none"
+                   >
+                     <option value="ALL">Tous les types</option>
+                     <option value="DEPOSIT">Dépôts</option>
+                     <option value="EARNING">Gains</option>
+                     <option value="VOTE">Votes</option>
+                     <option value="WITHDRAWAL">Retraits</option>
+                   </select>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
                    <button 
