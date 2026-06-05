@@ -80,6 +80,7 @@ export interface AiAnalysis {
   sources: Source[];
   fallacies?: string[];
   analyzedAt: number;
+  modelName?: string;
 }
 
 export interface User {

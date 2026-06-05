@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Claim, VoteType, User, Comment, Transaction } from '../types';
-import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CheckCircle, ChevronDown, ChevronUp, BookOpen, Globe, RefreshCw, Copy, ExternalLink, Trophy } from 'lucide-react';
+import { MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, ShieldCheck, Share2, Check, Send, User as UserIcon, Coins, Image as ImageIcon, Video, Cpu, Eye, X, Sparkles, Loader2, Bell, Shield, History, HelpCircle, Flag, ArrowRight, ArrowUpRight, ArrowDownLeft, AlertCircle, Filter, Wallet, List, ArrowUp, ArrowDown, CalendarClock, TrendingUp, CheckCircle, ChevronDown, ChevronUp, BookOpen, Globe, RefreshCw, Copy, ExternalLink, Trophy, Maximize2 } from 'lucide-react';
 import { analyzeClaimWithGemini, detectLogicalFallacies } from '../geminiService';
 import { VideoPlayer } from './VideoPlayer';
+import { ClaimDetail } from './ClaimDetail';
 
 interface ClaimCardProps {
   claim: Claim;
@@ -48,6 +49,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
   // State for expanded details (Accordion)
   const [isExpanded, setIsExpanded] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showFullscreenModal, setShowFullscreenModal] = useState(false);
   
   // Vote History Modal State
   const [showVoteHistoryDetails, setShowVoteHistoryDetails] = useState(false);
@@ -786,6 +788,16 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
             <span className="px-2 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
               {claim.category}
             </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowFullscreenModal(true);
+              }}
+              className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-600 bg-white dark:bg-slate-800 shadow-sm"
+              title="Aperçu plein écran"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -913,10 +925,17 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
 
           {/* Expanded Analysis Details */}
           {isExpanded && claim.aiAnalysis && (
-            <div className="mt-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 p-4 animate-in fade-in slide-in-from-top-2">
+            <div className="mt-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 p-4 animate-in fade-in slide-in-from-top-2 relative">
+               {/* AI Model Badge */}
+               {claim.aiAnalysis.modelName && (
+                 <div className="absolute top-3 right-3 flex items-center bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded text-[10px] font-semibold tracking-wide border border-indigo-200 dark:border-indigo-800/50">
+                    <Cpu className="w-3 h-3 mr-1" />
+                    Analysé par {claim.aiAnalysis.modelName}
+                 </div>
+               )}
                
                {/* Summary Section */}
-               <div className="flex items-start mb-4">
+               <div className="flex items-start mb-4 mt-2">
                   <BookOpen className="w-4 h-4 text-indigo-500 mr-2 mt-0.5 flex-shrink-0" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase mb-1">Résumé de l'analyse</h4>
@@ -1404,6 +1423,30 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, onClick, currentUse
               <Send className="w-4 h-4" />
             </button>
           </form>
+        </div>
+      )}
+      {showFullscreenModal && (
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-center items-start overflow-y-auto pt-10 pb-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowFullscreenModal(false);
+          }}
+        >
+          <div 
+            className="w-full max-w-4xl relative px-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ClaimDetail 
+              claims={[claim]}
+              onUpdateClaim={onUpdate}
+              currentUser={currentUser}
+              standaloneId={claim.id}
+              isModal={true}
+              onClose={() => setShowFullscreenModal(false)}
+              onVote={onVote}
+            />
+          </div>
         </div>
       )}
     </div>

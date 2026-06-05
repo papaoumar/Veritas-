@@ -14,10 +14,15 @@ interface ClaimDetailProps {
   claims: Claim[];
   onUpdateClaim: (updatedClaim: Claim) => void;
   currentUser: any;
+  standaloneId?: string;
+  isModal?: boolean;
+  onClose?: () => void;
+  onVote?: (claimId: string, voteType: VoteType) => void;
 }
 
-export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim, currentUser }) => {
-  const { id } = useParams<{ id: string }>();
+export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim, currentUser, standaloneId, isModal, onClose, onVote }) => {
+  const { id: routeId } = useParams<{ id: string }>();
+  const id = standaloneId || routeId;
   const navigate = useNavigate();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,13 +86,16 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
   };
 
   const handleVote = (type: VoteType) => {
-    // In a real app, this would call an API
-    const updatedVotes = { ...claim.votes };
-    updatedVotes[type] += 1;
-    onUpdateClaim({
-      ...claim,
-      votes: updatedVotes
-    });
+    if (onVote) {
+      onVote(claim.id, type);
+    } else {
+      const updatedVotes = { ...claim.votes };
+      updatedVotes[type] += 1;
+      onUpdateClaim({
+        ...claim,
+        votes: updatedVotes
+      });
+    }
   };
 
   const handleShare = async (e: React.MouseEvent) => {
@@ -146,10 +154,14 @@ export const ClaimDetail: React.FC<ClaimDetailProps> = ({ claims, onUpdateClaim,
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <button 
-        onClick={() => navigate('/')}
-        className="mb-6 flex items-center text-slate-500 hover:text-slate-900 transition-colors"
+        onClick={() => onClose ? onClose() : navigate('/')}
+        className="mb-6 flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
       >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Retour au flux
+        {isModal ? (
+          <><XCircle className="w-5 h-5 mr-2" /> Fermer les détails</>
+        ) : (
+          <><ArrowLeft className="w-4 h-4 mr-2" /> Retour au flux</>
+        )}
       </button>
 
       {/* Main Content Card */}

@@ -12,7 +12,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { Network } from './components/Network';
 import { AdUnit } from './components/AdUnit';
 import { Claim, User, VoteType, PaymentMethod, ExpertLevel, Transaction } from './types';
-import { TrendingUp, Award, Zap, Coins, Wallet, X, CreditCard, Landmark, CheckCircle, ArrowRight, Shield, Search } from 'lucide-react';
+import { TrendingUp, Award, Zap, Coins, Wallet, X, CreditCard, Landmark, CheckCircle, ArrowRight, Shield, Search, RefreshCw } from 'lucide-react';
 import { StorageService } from './storageService';
 
 // Helpers
@@ -38,12 +38,26 @@ const Feed: React.FC<{
   const [sortOption, setSortOption] = useState('Récents');
   const [displayCount, setDisplayCount] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [minConfidence, setMinConfidence] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const observerTarget = React.useRef<HTMLDivElement>(null);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    // Simulate network delay
+    setTimeout(() => {
+      setIsRefreshing(false);
+      // Reset visible items count
+      setDisplayCount(10);
+    }, 600);
+  };
 
   // Reset display count when sorting or searching changes
   useEffect(() => {
     setDisplayCount(10);
-  }, [sortOption, searchQuery]);
+  }, [sortOption, searchQuery, startDate, endDate, minConfidence]);
 
   const sortedClaims = React.useMemo(() => {
     let sorted = [...claims];
@@ -57,6 +71,21 @@ const Feed: React.FC<{
       );
     }
     
+    // Filter by date range
+    if (startDate) {
+      const start = new Date(startDate).setHours(0, 0, 0, 0);
+      sorted = sorted.filter(c => c.timestamp >= start);
+    }
+    if (endDate) {
+      const end = new Date(endDate).setHours(23, 59, 59, 999);
+      sorted = sorted.filter(c => c.timestamp <= end);
+    }
+
+    // Filter by min confidence
+    if (minConfidence > 0) {
+      sorted = sorted.filter(c => c.aiAnalysis && c.aiAnalysis.confidence >= minConfidence);
+    }
+
     // Filter by user preferences (blocked categories)
     if (user?.preferences?.blockedCategories) {
       sorted = sorted.filter(c => !user.preferences!.blockedCategories.includes(c.category));
@@ -94,7 +123,7 @@ const Feed: React.FC<{
         sorted.sort((a, b) => b.timestamp - a.timestamp);
     }
     return sorted;
-  }, [claims, user?.preferences?.blockedCategories, sortOption, searchQuery]);
+  }, [claims, user?.preferences?.blockedCategories, sortOption, searchQuery, startDate, endDate, minConfidence]);
 
   const visibleClaims = sortedClaims.slice(0, displayCount);
 
@@ -123,9 +152,19 @@ const Feed: React.FC<{
 
   return (
     <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Actualités à vérifier</h2>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-4 gap-3">
+          <div className="flex items-center space-x-3">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Actualités à vérifier</h2>
+            <button 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-1.5 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none disabled:opacity-50"
+              title="Rafraîchir"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full xl:w-auto">
             <div className="relative w-full sm:w-64">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-4 w-4 text-slate-400" />
@@ -138,11 +177,39 @@ const Feed: React.FC<{
                 className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 dark:text-slate-200"
               />
             </div>
+            <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full sm:w-auto px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 dark:text-slate-200"
+                title="Date de début"
+              />
+              <span className="text-slate-400">-</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full sm:w-auto px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 dark:text-slate-200"
+                title="Date de fin"
+              />
+            </div>
             <div className="flex space-x-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
               <select className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 hidden sm:block text-slate-700 dark:text-slate-200">
                 <option>Toutes catégories</option>
                 <option>Politique</option>
                 <option>Tech</option>
+              </select>
+              <select 
+                value={minConfidence.toString()}
+                onChange={(e) => setMinConfidence(Number(e.target.value))}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm rounded-lg p-2 focus:ring-indigo-500 hidden sm:block text-slate-700 dark:text-slate-200 cursor-pointer"
+                title="Fiabilité IA minimium"
+              >
+                <option value="0">Toute fiabilité</option>
+                <option value="50">&gt; 50% Fiable</option>
+                <option value="80">&gt; 80% Fiable</option>
+                <option value="90">&gt; 90% Fiable</option>
               </select>
               <select 
                 value={sortOption}
@@ -489,13 +556,28 @@ const App: React.FC = () => {
     userVoteTimestamp: user ? c.voteHistory?.find(v => v.userId === user.id)?.timestamp : undefined
   }));
 
+  // Calculate mocked notifications for demo purposes
+  const hasNotifications = React.useMemo(() => {
+    if (!user) return false;
+    // Check if any subscribed claim exists, as a proxy for "claim status change" notifications
+    const hasSubscribedChanges = claims.some(c => c.isSubscribed);
+    return hasSubscribedChanges;
+  }, [user, claims]);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans relative transition-colors duration-500 ease-in-out">
-      <Navbar user={user || { id: 'guest', name: 'Visiteur', avatar: '', expertLevel: ExpertLevel.OBSERVER } as User} isAuthenticated={isAuthenticated} onLogout={handleLogout} isDarkMode={user?.preferences?.darkMode} onToggleTheme={() => {
-        if (user) {
-          handleUpdateUser({...user, preferences: {...(user.preferences || {}), darkMode: !user.preferences?.darkMode} as any});
-        }
-      }} />
+      <Navbar 
+        user={user || { id: 'guest', name: 'Visiteur', avatar: '', expertLevel: ExpertLevel.OBSERVER } as User} 
+        isAuthenticated={isAuthenticated} 
+        onLogout={handleLogout} 
+        isDarkMode={user?.preferences?.darkMode} 
+        hasNotifications={hasNotifications}
+        onToggleTheme={() => {
+          if (user) {
+            handleUpdateUser({...user, preferences: {...(user.preferences || {}), darkMode: !user.preferences?.darkMode} as any});
+          }
+        }} 
+      />
 
       {/* Withdraw Modal */}
       {showWithdrawModal && user && (

@@ -62,6 +62,7 @@ export const analyzeClaimWithGemini = async (claimText: string): Promise<AiAnaly
       summary,
       sources: uniqueSources,
       analyzedAt: Date.now(),
+      modelName: "Gemini 2.5 Flash",
     };
 
   } catch (error) {

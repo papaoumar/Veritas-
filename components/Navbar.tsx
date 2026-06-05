@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck, PlusCircle, LayoutGrid, Coins, Shield, LogOut, Settings, User as UserIcon, Menu, AlertCircle, Globe, Sun, Moon, Home, Plus } from 'lucide-react';
+import { ShieldCheck, PlusCircle, LayoutGrid, Coins, Shield, LogOut, Settings, User as UserIcon, Menu, AlertCircle, Globe, Sun, Moon, Home, Plus, Bell } from 'lucide-react';
 import { User as UserType, ExpertLevel } from '../types';
 
 interface NavbarProps {
@@ -10,9 +10,10 @@ interface NavbarProps {
   onLogout: () => void;
   isDarkMode?: boolean;
   onToggleTheme?: () => void;
+  hasNotifications?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ user, isAuthenticated, onLogout, isDarkMode, onToggleTheme }) => {
+export const Navbar: React.FC<NavbarProps> = ({ user, isAuthenticated, onLogout, isDarkMode, onToggleTheme, hasNotifications }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
@@ -120,6 +121,14 @@ export const Navbar: React.FC<NavbarProps> = ({ user, isAuthenticated, onLogout,
                     </div>
                   )}
 
+                  {/* Notifications */}
+                  <button className="relative p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" title="Notifications">
+                    <Bell className="w-5 h-5" />
+                    {hasNotifications && (
+                      <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
+                    )}
+                  </button>
+
                   {/* Profile Dropdown */}
                   <div className="relative">
                     <button 
@@ -178,6 +187,13 @@ export const Navbar: React.FC<NavbarProps> = ({ user, isAuthenticated, onLogout,
                 </div>
               )}
                
+              <button className="relative p-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none" title="Notifications">
+                 <Bell className="w-5 h-5" />
+                 {hasNotifications && (
+                   <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
+                 )}
+              </button>
+
               {onToggleTheme && (
                 <button
                   onClick={onToggleTheme}
